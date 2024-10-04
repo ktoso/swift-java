@@ -14,7 +14,7 @@
          int count = 0;
          for (String envName : env.keySet()) {
              if(!envName.contains(filter)) continue;
-             System.out.format("%s=%s%n",
+             System.out.format("[java] %s=%s%n",
                              envName,
                              env.get(envName));
              count++;

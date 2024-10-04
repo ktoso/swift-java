@@ -17,7 +17,7 @@ struct Main {
     print("Calling into JEnvMap...")
     let string = "JAVA"
     string.withCString {
-      print("Number env variables with [\(string)] in the name:",
+      print("[swift] Number env variables with [\(string)] in the name:",
         filter_env(thread, UnsafeMutablePointer(mutating: $0)))
     }
 
