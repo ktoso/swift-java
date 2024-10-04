@@ -1,0 +1,5 @@
+module MXFoundation {
+    header "include/JEnvMap.h"
+    link "envmap"
+    export *
+}
