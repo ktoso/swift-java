@@ -14,8 +14,34 @@
 
 .PHONY: run clean all
 
+ARCH := $(shell arch)
+UNAME := $(shell uname)
+
+ifeq ($(UNAME), Linux)
+ifeq ($(ARCH), 'i386')
+  ARCH_SUBDIR := x86_64
+else
+  ARCH_SUBDIR := aarch64
+endif
+BUILD_DIR := .build/$(ARCH_SUBDIR)-unknown-linux-gnu
+LIB_SUFFIX := so
+endif
+
+ifeq ($(UNAME), Darwin)
+ifeq ($(ARCH), 'i386')
+  ARCH_SUBDIR := x86_64
+else
+  ARCH_SUBDIR := arm64
+endif
+BUILD_DIR := .build/$(ARCH_SUBDIR)-apple-macosx
+LIB_SUFFIX := dylib
+endif
+
 all: require-graal libenvmap.dylib
 	swift build
+
+run: all
+	DYLD_LIBRARY_PATH=$(BUILD_DIR)/debug swift run
 
 require-graal:
 	@if ! java -version 2>&1 | grep -q "Graal"; then \
@@ -34,11 +60,17 @@ libenvmap.dylib: Sources/JEnvMap/LibEnvMap.class
 	cd Sources/JEnvMap; \
 	native-image -o libenvmap --shared; \
 	mv *.h include/; \
-	mv *.dylib ../../
+	rm *.class; \
+	mkdir -p ../../$(BUILD_DIR)/debug; \
+	mv *.dylib ../../$(BUILD_DIR)/debug
 
 clean:
 	rm -rf .build
 	rm Sources/JEnvMap/*.class
+	rm Sources/JEnvMap/include/graal_isolate.h
+	rm Sources/JEnvMap/include/graal_isolate_dynamic.h
+	rm Sources/JEnvMap/include/libenvmap.h
+	rm Sources/JEnvMap/include/libenvmap_dynamic.h
 	rm libenvmap.dylib
 
 format:

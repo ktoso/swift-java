@@ -15,11 +15,8 @@ let package = Package(
     .executableTarget(
       name: "GraalSample",
       dependencies: ["JEnvMap"],
-      swiftSettings: [
-        .unsafeFlags(["-I/Users/ktoso/code/swift-java/graal/lib"])
-      ],
       linkerSettings: [
-        .unsafeFlags(["-I/Users/ktoso/code/swift-java/graal/lib", "-lenvmap", ])
+        .unsafeFlags(["-lenvmap"])
       ]
     ),
     .target(
