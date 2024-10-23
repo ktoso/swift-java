@@ -103,7 +103,7 @@ The resulting configuration file will look something like this:
 
 ```json
 {
-  "classPath" : "QuadraticSieve-1.0.jar",
+  "classpath" : "QuadraticSieve-1.0.jar",
   "classes" : {
     "com.gazman.quadratic_sieve.QuadraticSieve" : "QuadraticSieve",
     "com.gazman.quadratic_sieve.core.BaseFact" : "BaseFact",
@@ -200,7 +200,7 @@ Putting it all together, we can define a main program in `Sources/JavaSieve/main
 import JavaKit
 import JavaKitVM
 
-let jvm = try JavaVirtualMachine.shared(classPath: ["QuadraticSieve-1.0.jar"])
+let jvm = try JavaVirtualMachine.shared(classpath: ["QuadraticSieve-1.0.jar"])
 do {
   let sieveClass = try JavaClass<SieveOfEratosthenes>(in: jvm.environment())
   for prime in sieveClass.findPrimes(100)! {
@@ -211,7 +211,7 @@ do {
 }
 ```
 
-Note that we are passing the Jar file in the `classPath` argument when initializing the `JavaVirtualMachine` instance. Otherwise, the program will fail with an error because it cannot find the Java class `com.gazman.quadratic_sieve.primes.SieveOfEratosthenes`.
+Note that we are passing the Jar file in the `classpath` argument when initializing the `JavaVirtualMachine` instance. Otherwise, the program will fail with an error because it cannot find the Java class `com.gazman.quadratic_sieve.primes.SieveOfEratosthenes`.
 
 ## Using Java libraries from Swift
 

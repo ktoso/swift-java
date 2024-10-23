@@ -19,15 +19,15 @@
 /// must be kept in sync.
 package struct Configuration: Codable {
   /// The Java class path that should be passed along to the Java2Swift tool.
-  package var classPath: String? = nil
+  package var classpath: String? = nil
 
   /// The Java classes that should be translated to Swift. The keys are
   /// canonical Java class names (e.g., java.util.Vector) and the values are
   /// the corresponding Swift names (e.g., JavaVector).
   package var classes: [String: String] = [:]
 
-  package init(classPath: String? = nil, classes: [String : String] = [:]) {
-    self.classPath = classPath
+  package init(classpath: String? = nil, classes: [String : String] = [:]) {
+    self.classpath = classpath
     self.classes = classes
   }
 }

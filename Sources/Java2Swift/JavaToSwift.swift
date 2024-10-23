@@ -139,31 +139,31 @@ struct JavaToSwift: ParsableCommand {
       classPathPieces.append(jarFile)
     case .classWrappers(let config):
       //   * Class path specified in the configuration file (if any)
-      config.classPath.map { classPathPieces.append($0) }
+      config.classpath.map { classPathPieces.append($0) }
     }
 
     //   * Classes paths from all dependent configuration files
     for (_, config) in dependentConfigs {
-      config.classPath.map { classPathPieces.append($0) }
+      config.classpath.map { classPathPieces.append($0) }
     }
 
     // Bring up the Java VM.
-    let jvm = try JavaVirtualMachine.shared(classPath: classPathPieces)
+    let jvm = try JavaVirtualMachine.shared(classpath: classPathPieces)
 
     // Run the generation step.
-    let classPath = classPathPieces.joined(separator: ":")
+    let classpath = classPathPieces.joined(separator: ":")
     switch generationMode {
     case .configuration(jarFile: let jarFile):
       try emitConfiguration(
         forJarFile: jarFile,
-        classPath: classPath,
+        classpath: classpath,
         environment: jvm.environment()
       )
 
     case .classWrappers(let config):
       try generateWrappers(
         config: config,
-        classPath: classPath,
+        classpath: classpath,
         dependentConfigs: dependentConfigs,
         environment: jvm.environment()
       )
@@ -173,7 +173,7 @@ struct JavaToSwift: ParsableCommand {
   /// Generate wrapper
   mutating func generateWrappers(
     config: Configuration,
-    classPath: String,
+    classpath: String,
     dependentConfigs: [(String, Configuration)],
     environment: JNIEnvironment
   ) throws {
@@ -197,7 +197,7 @@ struct JavaToSwift: ParsableCommand {
     #if false
     let classLoader = URLClassLoader(
       [
-        try URL("file://\(classPath)", environment: environment)
+        try URL("file://\(classpath)", environment: environment)
       ],
       environment: environment
     )
@@ -270,10 +270,10 @@ struct JavaToSwift: ParsableCommand {
 
   mutating func emitConfiguration(
     forJarFile jarFileName: String,
-    classPath: String,
+    classpath: String,
     environment: JNIEnvironment
   ) throws {
-    var configuration = Configuration(classPath: classPath)
+    var configuration = Configuration(classpath: classpath)
 
     let jarFile = try JarFile(jarFileName, false, environment: environment)
     for entry in jarFile.entries()! {

@@ -15,7 +15,7 @@
 import JavaKit
 import JavaKitVM
 
-let jvm = try JavaVirtualMachine.shared(classPath: ["QuadraticSieve-1.0.jar"])
+let jvm = try JavaVirtualMachine.shared(classpath: ["QuadraticSieve-1.0.jar"])
 do {
   let sieveClass = try JavaClass<SieveOfEratosthenes>(in: jvm.environment())
   for prime in sieveClass.findPrimes(100)! {
