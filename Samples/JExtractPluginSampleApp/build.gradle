@@ -14,8 +14,7 @@
 
 import org.swift.swiftkit.gradle.BuildUtils
 
-import java.nio.file.Files
-import java.nio.file.Paths
+import java.nio.file.*
 
 plugins {
     id("build-logic.java-application-conventions")
@@ -89,6 +88,10 @@ sourceSets {
     }
 }
 
+tasks.build {
+    dependsOn("jextract")
+}
+
 dependencies {
     implementation(project(':SwiftKit'))
 
@@ -105,12 +108,6 @@ tasks.named('test', Test) {
 application {
     mainClass = "com.example.swift.JExtractPluginSampleMain"
 
-    // In order to silence:
-    //   WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
-    //   WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by org.example.swift.JavaKitExample in an unnamed module
-    //   WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
-    //   WARNING: Restricted methods will be blocked in a future release unless native access is enabled
-    // FIXME: Find out the proper solution to this
     applicationDefaultJvmArgs = [
         "--enable-native-access=ALL-UNNAMED",
 

@@ -46,6 +46,7 @@ extension Swift2JavaTranslator {
 
   public func writeSwiftThunkSources(outputDirectory: String) throws {
     var printer = CodePrinter()
+
     try writeSwiftThunkSources(outputDirectory: outputDirectory, printer: &printer)
   }
 
@@ -654,7 +655,7 @@ extension Swift2JavaTranslator {
     thunkName = thunkNameRegistry.deduplicate(name: thunkName)
     printer.print(
       """
-      public static final MemorySegment \(accessorKind.renderAddrFieldName) = 
+      public static final MemorySegment \(accessorKind.renderAddrFieldName) =
         \(self.swiftModuleName).findOrThrow("\(thunkName)");
       """
     )

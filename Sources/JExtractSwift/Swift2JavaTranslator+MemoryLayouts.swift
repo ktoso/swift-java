@@ -30,6 +30,10 @@ extension Swift2JavaTranslator {
     //      decl.isInit ? nil : .wrapper
 
     for param in decl.effectiveParameters(paramPassingStyle: paramPassingStyle) {
+      if param.type.cCompatibleJavaMemoryLayout == CCompatibleJavaMemoryLayout.primitive(.void) {
+        continue
+      }
+
       layouts.append(param.type.foreignValueLayout)
     }
 
