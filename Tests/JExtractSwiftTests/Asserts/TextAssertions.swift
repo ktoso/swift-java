@@ -93,7 +93,7 @@ func assertOutput(
       if ge.commonPrefix(with: ee) != ee {
         diffLineNumbers.append(no + matchingOutputOffset)
 
-        #expect(ge == ee, sourceLocation: sourceLocation)
+        #expect(ge == ee, sourceLocation: sourceLocation)Ó
       }
     }
 
