@@ -20,6 +20,16 @@ final class JExtractSwiftCommandPlugin: BuildToolPlugin, CommandPlugin {
   
   var verbose: Bool = false
   
+  /// Build the target before attempting to extract from it.
+  /// This avoids trying to extract from broken sources.
+  ///
+  /// You may disable this if confident that input targets sources are correct and there's no need to kick off a pre-build for some reason.
+  var buildInputs: Bool = true
+  
+  /// Build the target once swift-java sources have been generated.
+  /// This helps verify that the generated output is correct, and won't miscompile on the next build.
+  var buildOutputs: Bool = true
+  
   func createBuildCommands(context: PackagePlugin.PluginContext, target: any PackagePlugin.Target) async throws -> [PackagePlugin.Command] {
     // FIXME: This is not a build plugin but SwiftPM forces us to impleme the protocol anyway? rdar://139556637
     return []
@@ -37,7 +47,7 @@ final class JExtractSwiftCommandPlugin: BuildToolPlugin, CommandPlugin {
       }
     
     for target in context.package.targets {
-      guard hasSwiftJavaConfig(target: target) else {
+      guard let configPath = getSwiftJavaConfig(target: target) else {
         log("Skipping target '\(target.name), has no 'swift-java.config' file")
         continue
       }
@@ -58,6 +68,16 @@ final class JExtractSwiftCommandPlugin: BuildToolPlugin, CommandPlugin {
     
     guard let sourceModule = target.sourceModule else { return }
 
+    if self.buildInputs {
+      log("Pre-building target '\(target.name)' before extracting sources...")
+      try self.packageManager.build(.target(target.name), parameters: .init())
+    }
+    
+    if self.buildOutputs {
+      log("Post-building target '\(target.name)' to verify generated sources...")
+      try self.packageManager.build(.target(target.name), parameters: .init())
+    }
+    
     // Note: Target doesn't have a directoryURL counterpart to directory,
     // so we cannot eliminate this deprecation warning.
     let sourceDir = target.directory.string
@@ -87,8 +107,6 @@ final class JExtractSwiftCommandPlugin: BuildToolPlugin, CommandPlugin {
     ]
     arguments.append(sourceDir)
 
-    print("PLUGIN: jextract \(arguments.joined(separator: " "))")
-    
     try runExtract(context: context, target: target, arguments: arguments)
   }
   
@@ -98,6 +116,8 @@ final class JExtractSwiftCommandPlugin: BuildToolPlugin, CommandPlugin {
     process.arguments = arguments
     
     do {
+      log("Execute: \(process.executableURL) \(arguments)")
+      
       try process.run()
       process.waitUntilExit()
       
@@ -107,7 +127,7 @@ final class JExtractSwiftCommandPlugin: BuildToolPlugin, CommandPlugin {
     }
   }
   
-  func log(message: @autoclosure () -> String) {
+  func log(_ message: @autoclosure () -> String) {
     if self.verbose {
       print("[swift-java] \(message())")
     }

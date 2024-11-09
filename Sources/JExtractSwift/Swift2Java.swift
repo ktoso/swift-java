@@ -59,7 +59,7 @@ public struct SwiftToJava: ParsableCommand {
 
     var allFiles: [URL] = []
     let fileManager = FileManager.default
-    var log = translator.log
+    let log = translator.log
     
     for path in inputPaths {
       log.debug("Input path: \(path)")
@@ -81,12 +81,11 @@ public struct SwiftToJava: ParsableCommand {
       try translator.writeExportedJavaSources(outputDirectory: outputDirectoryJava)
       try translator.writeSwiftThunkSources(outputDirectory: outputDirectorySwift)
 
-      print("Imported interface file: \(file) " + "done.".green)
+      log.debug("[swift-java] Imported interface file: \(file.path)")
     }
 
     try translator.writeExportedJavaModule(outputDirectory: outputDirectoryJava)
-    print("")
-    print("[swift-java] Generated Java sources in package '\(packageName)' in: \(outputDirectoryJava)/")
+    print("[swift-java] Generated Java sources (\(packageName)) in: \(outputDirectoryJava)/")
     print("[swift-java] Imported Swift module '\(swiftModule)': " + "done.".green)
   }
   

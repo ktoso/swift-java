@@ -36,7 +36,7 @@ func assertOutput(
   try! translator.analyze(file: "/fake/Fake.swiftinterface", text: input)
 
   let output: String
-  var printer: CodePrinter = CodePrinter(io: .accumulateAll)
+  var printer: CodePrinter = CodePrinter(mode: .accumulateAll)
   switch renderKind {
   case .swift:
     try translator.writeSwiftThunkSources(outputDirectory: "/fake", printer: &printer)
@@ -93,7 +93,7 @@ func assertOutput(
       if ge.commonPrefix(with: ee) != ee {
         diffLineNumbers.append(no + matchingOutputOffset)
 
-        #expect(ge == ee, sourceLocation: sourceLocation)Ó
+        #expect(ge == ee, sourceLocation: sourceLocation)
       }
     }
 
