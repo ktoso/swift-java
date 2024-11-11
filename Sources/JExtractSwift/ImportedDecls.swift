@@ -300,7 +300,7 @@ public struct ImportedVariable: ImportedDecl, CustomStringConvertible {
     case .set:
       let newValueParam: FunctionParameterSyntax =
         "_ newValue: \(self.returnType.cCompatibleSwiftType)"
-      var funcDecl = ImportedFunc(
+      let funcDecl = ImportedFunc(
         module: self.module,
         decl: self.syntax!,
         parent: self.parentName,
