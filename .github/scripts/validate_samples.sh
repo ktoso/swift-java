@@ -12,7 +12,8 @@ declare -r CI_VALIDATE_SCRIPT='ci-validate.sh'
 for samplePackage in ${SAMPLE_PACKAGES} ; do
   sampleDir=$(dirname "$samplePackage")
 
-
+  echo ""
+  echo ""
   echo "========================================================================"
   printf "Validate sample: '${BOLD}%s${RESET}' using: " "$sampleDir"
   cd "$sampleDir" || exit
