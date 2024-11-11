@@ -25,16 +25,22 @@ struct SwiftThunkTranslator {
     self.st = st
   }
 
+  func renderGlobalThunks() -> [DeclSyntax] {
+    var decls: [DeclSyntax] = []
+
+    for decl in st.importedGlobalFuncs {
+      decls.append(contentsOf: render(forFunc: decl))
+    }
+
+    return decls
+  }
+
   /// Render all the thunks that make Swift methods accessible to Java.
   func renderThunks(forType nominal: ImportedNominalType) -> [DeclSyntax] {
     var decls: [DeclSyntax] = []
     decls.reserveCapacity(nominal.initializers.count + nominal.methods.count)
 
     decls.append(renderSwiftTypeAccessor(nominal))
-
-    for decl in st.importedGlobalFuncs {
-      decls.append(contentsOf: render(forFunc: decl))
-    }
 
     for decl in nominal.initializers {
       decls.append(contentsOf: renderSwiftInitAccessor(decl))

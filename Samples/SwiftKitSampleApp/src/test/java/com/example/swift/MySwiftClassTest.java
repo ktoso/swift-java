@@ -12,28 +12,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-package com.example.swift.generated;
+package com.example.swift;
 
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledOnOs;
-import org.junit.jupiter.api.condition.OS;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MySwiftClassTest {
-
-    @BeforeAll
-    static void beforeAll() {
-        System.out.printf("java.library.path = %s\n", System.getProperty("java.library.path"));
-
-        System.loadLibrary("swiftCore");
-        System.loadLibrary("ExampleSwiftLibrary");
-
-        System.setProperty("jextract.trace.downcalls", "true");
-    }
 
     @Test
     void test_MySwiftClass_voidMethod() {

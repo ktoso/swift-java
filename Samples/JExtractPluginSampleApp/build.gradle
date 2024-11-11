@@ -113,7 +113,7 @@ application {
         // Include the library paths where our dylibs are that we want to load and call
         "-Djava.library.path=" +
                 (BuildUtils.javaLibraryPaths(rootDir) +
-                 BuildUtils.javaLibraryPaths(layout.projectDirectory.asFile)).join(":"),
+                 BuildUtils.javaLibraryPaths(project.projectDir)).join(":"),
 
         // Enable tracing downcalls (to Swift)
         "-Djextract.trace.downcalls=true"

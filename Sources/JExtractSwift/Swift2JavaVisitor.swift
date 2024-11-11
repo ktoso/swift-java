@@ -221,6 +221,10 @@ final class Swift2JavaVisitor: SyntaxVisitor {
 
     return .skipChildren
   }
+
+  override func visit(_ node: DeinitializerDeclSyntax) -> SyntaxVisitorContinueKind {
+    return .skipChildren
+  }
 }
 
 extension DeclGroupSyntax where Self: NamedDeclSyntax {

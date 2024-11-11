@@ -173,8 +173,20 @@ extension Swift2JavaTranslator {
       //        SwiftKitPrinting.renderCallGetSwiftTypeMangledName(module: self.swiftModuleName, nominal: decl),
       //        ";"
       //      )
+
+      // We use a static field to abuse the initialization order such that by the time we get type metadata,
+      // we already have loaded the library where it will be obtained from.
       printer.printParts(
         """
+        @SuppressWarnings("unused")
+        private static final boolean INITIALIZED_LIBS = initializeLibs();
+        static boolean initializeLibs() {
+            System.loadLibrary(SwiftKit.STDLIB_DYLIB_NAME);
+            System.loadLibrary("SwiftKitSwift");
+            System.loadLibrary(LIB_NAME);
+            return true;
+        }
+
         public static final SwiftAnyType TYPE_METADATA =
             new SwiftAnyType(\(SwiftKitPrinting.renderCallGetSwiftType(module: self.swiftModuleName, nominal: decl)));
         public final SwiftAnyType $swiftType() {
@@ -311,6 +323,7 @@ extension Swift2JavaTranslator {
         private static SymbolLookup getSymbolLookup() {
             // Ensure Swift and our Lib are loaded during static initialization of the class.
             System.loadLibrary("swiftCore");
+            System.loadLibrary("swiftKitSwift");
             System.loadLibrary(LIB_NAME);
 
             if (PlatformUtils.isMacOS()) {

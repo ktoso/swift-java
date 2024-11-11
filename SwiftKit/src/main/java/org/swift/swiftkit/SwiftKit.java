@@ -27,15 +27,19 @@ import static org.swift.swiftkit.util.StringUtils.stripSuffix;
 
 public class SwiftKit {
 
-    private static final String STDLIB_DYLIB_NAME = "swiftCore";
+    public static final String STDLIB_DYLIB_NAME = "swiftCore";
     private static final String STDLIB_MACOS_DYLIB_PATH = "/usr/lib/swift/libswiftCore.dylib";
 
     private static final Arena LIBRARY_ARENA = Arena.ofAuto();
     static final boolean TRACE_DOWNCALLS = Boolean.getBoolean("jextract.trace.downcalls");
 
-    static {
+    @SuppressWarnings("unused")
+    private static final boolean INITIALIZED_LIBS = initializeLibs();
+
+    static boolean initializeLibs() {
         System.loadLibrary(STDLIB_DYLIB_NAME);
         System.loadLibrary("SwiftKitSwift");
+        return true;
     }
 
     static final SymbolLookup SYMBOL_LOOKUP = getSymbolLookup();

@@ -57,11 +57,13 @@ final class JExtractSwiftCommandPlugin: BuildToolPlugin, CommandPlugin {
       }
 
       do {
-        print("[swift-java] Extracting Java wrappers from target: '\(target.name)'...")
+        print("[swift-java-command] Extracting Java wrappers from target: '\(target.name)'...")
         try performCommand(context: context, target: target, arguments: arguments)
       } catch {
-        print("[swift-java] error: Failed to extract from target '\(target.name)': \(error)")
+        print("[swift-java-command] error: Failed to extract from target '\(target.name)': \(error)")
       }
+
+      print("[swift-java-command] Done.")
     }
   }
 
@@ -105,7 +107,7 @@ final class JExtractSwiftCommandPlugin: BuildToolPlugin, CommandPlugin {
     arguments.append(sourceDir)
 
     try runExtract(context: context, target: target, arguments: arguments)
-    
+
     if self.buildOutputs {
       // Building the *products* since we need to build the dylib that contains our newly generated sources,
       // so just building the target again would not be enough. We build all products which we affected using
