@@ -53,20 +53,18 @@ extension Swift2JavaTranslator {
   }
 
   public func writeSwiftThunkSources(outputDirectory: String, printer: inout CodePrinter) throws {
-    // ==== Globals
-    for decl in self.importedGlobalFuncs {
-      printSwiftThunkSources(&printer, decl: decl)
-    }
-
     let moduleFilenameBase = "\(self.swiftModuleName)Module+SwiftJava"
     let moduleFilename = "\(moduleFilenameBase).swift"
-    log.info("Printing contents: \(moduleFilename)")
     do {
+      log.info("Printing contents: \(moduleFilename)")
+
+      try printGlobalSwiftThunkSources(&printer)
+
       if let outputFile = try printer.writeContents(
         outputDirectory: outputDirectory,
         javaPackagePath: nil,
         filename: moduleFilename) {
-        print("[swift-java] Generated: \(moduleFilenameBase.bold).java (at \(outputFile)")
+        print("[swift-java] Generated: \(moduleFilenameBase.bold).swift (at \(outputFile)")
       }
     } catch {
       log.warning("Failed to write to Swift thunks: \(moduleFilename)")
@@ -90,6 +88,15 @@ extension Swift2JavaTranslator {
       } catch {
         log.warning("Failed to write to Swift thunks: \(filename)")
       }
+    }
+  }
+
+  public func printGlobalSwiftThunkSources(_ printer: inout CodePrinter) throws {
+    let stt = SwiftThunkTranslator(self)
+
+    for thunk in stt.renderGlobalThunks() {
+      printer.print(thunk)
+      printer.println()
     }
   }
 
@@ -145,9 +152,6 @@ extension Swift2JavaTranslator {
     printImports(&printer)
 
     printModuleClass(&printer) { printer in
-
-      printStaticLibraryLoad(&printer)
-
       // TODO: print all "static" methods
       for decl in importedGlobalFuncs {
         printFunctionDowncallMethods(&printer, decl)
@@ -161,9 +165,6 @@ extension Swift2JavaTranslator {
     printImports(&printer)
 
     printClass(&printer, decl) { printer in
-      // Ensure we have loaded the library where the Swift type was declared before we attempt to resolve types in Swift
-      printStaticLibraryLoad(&printer)
-
       // Prepare type metadata, we're going to need these when invoking e.g. initializers so cache them in a static.
       // We call into source swift-java source generated accessors which give us the type of the Swift object:
       // TODO: seems we no longer need the mangled name per se, so avoiding such constant and downcall
@@ -308,6 +309,10 @@ extension Swift2JavaTranslator {
         """
         static final SymbolLookup SYMBOL_LOOKUP = getSymbolLookup();
         private static SymbolLookup getSymbolLookup() {
+            // Ensure Swift and our Lib are loaded during static initialization of the class.
+            System.loadLibrary("swiftCore");
+            System.loadLibrary(LIB_NAME);
+
             if (PlatformUtils.isMacOS()) {
                 return SymbolLookup.libraryLookup(System.mapLibraryName(LIB_NAME), LIBRARY_ARENA)
                         .or(SymbolLookup.loaderLookup())
@@ -338,6 +343,11 @@ extension Swift2JavaTranslator {
       """
       private \(typeName)() {
         // Should not be called directly
+      }
+
+      // Static enum to force initialization
+      private static enum Initializer {
+        FORCE; // Refer to this to force outer Class initialization (and static{} blocks to trigger)
       }
       """
     )
@@ -503,17 +513,6 @@ extension Swift2JavaTranslator {
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }
-      }
-      """
-    )
-  }
-
-  public func printStaticLibraryLoad(_ printer: inout CodePrinter) {
-    printer.print(
-      """
-      static {
-          System.loadLibrary("swiftCore");
-          System.loadLibrary(LIB_NAME);
       }
       """
     )
