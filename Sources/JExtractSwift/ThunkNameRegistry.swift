@@ -17,13 +17,30 @@
 package struct ThunkNameRegistry {
   /// Maps base names such as "swiftjava_Module_Type_method_a_b_c" to the number of times we've seen them.
   /// This is used to de-duplicate symbols as we emit them.
-  private var baseNames: [String: Int] = [:]
+  private var registry: [ImportedFunc: Int] = [:]
 
   package init() {}
 
-  package mutating func deduplicate(name: String) -> String {
-    var emittedCount = self.baseNames[name, default: 0]
-    defer { self.baseNames[name] = emittedCount + 1 }
+  package mutating func functionThunkName(
+    module: String, decl: ImportedFunc,
+    file: String = #fileID, line: UInt = #line) -> String {
+    let emittedCount = self.registry[decl, default: 0]
+    defer { self.registry[decl] = emittedCount + 1 }
+
+    let params = decl.effectiveParameters(paramPassingStyle: .swiftThunkSelf)
+    var paramsPart = ""
+    if !params.isEmpty {
+      paramsPart = "_" + params.map { param in
+        param.firstName ?? "_"
+      }.joined(separator: "_")
+    }
+
+    let name =
+      if let parent = decl.parent {
+        "swiftjava_\(module)_\(parent.swiftTypeName)_\(decl.baseIdentifier)\(paramsPart)"
+      } else {
+        "swiftjava_\(module)_\(decl.baseIdentifier)\(paramsPart)"
+      }
 
     if emittedCount == 0 {
       return name  // first occurrence of a name we keep as-is
