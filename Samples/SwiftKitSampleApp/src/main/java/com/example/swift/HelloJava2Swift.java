@@ -54,6 +54,7 @@ public class HelloJava2Swift {
             obj.takeIntMethod(42);
 
             MySwiftStruct swiftValue = new MySwiftStruct(12);
+            System.out.println("swiftValue.$swiftType().$layout().byteSize() = " + swiftValue.$swiftType().$layout().byteSize());
 
         }
 
