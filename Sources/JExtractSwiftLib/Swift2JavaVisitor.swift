@@ -38,18 +38,26 @@ final class Swift2JavaVisitor {
   }
 
   func visit(decl node: DeclSyntax, in parent: ImportedNominalType?) {
+    log.trace("Visit this one: \(node.nameForDebug)")
+
     switch node.as(DeclSyntaxEnum.self) {
     case .actorDecl(let node):
+      log.trace("Visit this actor: \(node.nameForDebug)")
       self.visit(nominalDecl: node, in: parent)
     case .classDecl(let node):
+      log.trace("Visit this: class: \(node.nameForDebug)")
       self.visit(nominalDecl: node, in: parent)
     case .structDecl(let node):
+      log.trace("Visit this: struct: \(node.nameForDebug)")
       self.visit(nominalDecl: node, in: parent)
     case .enumDecl(let node):
+      log.trace("Visit this: enum: \(node.nameForDebug)")
       self.visit(nominalDecl: node, in: parent)
     case .protocolDecl(let node):
+      log.trace("Visit this: protocol: \(node.nameForDebug)")
       self.visit(nominalDecl: node, in: parent)
     case .extensionDecl(let node):
+      log.trace("Visit this: extension: \(node.nameForDebug)")
       self.visit(extensionDecl: node, in: parent)
     case .typeAliasDecl:
       break // TODO: Implement; https://github.com/swiftlang/swift-java/issues/338
@@ -76,6 +84,7 @@ final class Swift2JavaVisitor {
     in parent: ImportedNominalType?
   ) {
     guard let importedNominalType = translator.importedNominalType(node, parent: parent) else {
+      log.trace("Early return; Did not import: \(node)")
       return
     }
     for memberItem in node.memberBlock.members {
@@ -84,16 +93,21 @@ final class Swift2JavaVisitor {
   }
 
   func visit(extensionDecl node: ExtensionDeclSyntax, in parent: ImportedNominalType?) {
-    guard parent != nil else {
-      // 'extension' in a nominal type is invalid. Ignore
-      return
-    }
+    // guard parent != nil else {
+    //   log.trace("'extension' in a nominal type is invalid. Ignore: \(node)")
+    //   return
+    // }
     guard let importedNominalType = translator.importedNominalType(node.extendedType) else {
+      log.trace("Early return; Did not import: \(node)")
       return
     }
     for memberItem in node.memberBlock.members {
       self.visit(decl: memberItem.decl, in: importedNominalType)
     }
+
+    log.trace("DONE visiting this one: \(node)")
+
+    log.trace("members were = \(node.memberBlock.members)")
   }
 
   func visit(functionDecl node: FunctionDeclSyntax, in typeContext: ImportedNominalType?) {
@@ -132,6 +146,7 @@ final class Swift2JavaVisitor {
   }
 
   func visit(variableDecl node: VariableDeclSyntax, in typeContext: ImportedNominalType?) {
+    log.warning("Visit extension: \(node.nameForDebug)")
     guard node.shouldExtract(config: config, log: log) else {
       return
     }
@@ -225,11 +240,11 @@ extension DeclSyntaxProtocol where Self: WithModifiersSyntax & WithAttributesSyn
       }
 
     guard meetsRequiredAccessLevel else {
-      log.debug("Skip import '\(self.qualifiedNameForDebug)': not at least \(config.effectiveMinimumInputAccessLevelMode)")
+      log.trace("Skip extracting '\(self.qualifiedNameForDebug)': not at least \(config.effectiveMinimumInputAccessLevelMode), node: \(self)")
       return false
     }
     guard !attributes.contains(where: { $0.isJava }) else {
-      log.debug("Skip import '\(self.qualifiedNameForDebug)': is Java")
+      log.trace("Skip extracting '\(self.qualifiedNameForDebug)': is Java, node: \(self)")
       return false
     }
 
@@ -237,7 +252,7 @@ extension DeclSyntaxProtocol where Self: WithModifiersSyntax & WithAttributesSyn
       let isFailable = node.optionalMark != nil
 
       if isFailable {
-        log.warning("Skip import '\(self.qualifiedNameForDebug)': failable initializer")
+        log.trace("Skip extracting '\(self.qualifiedNameForDebug)': failable initializer, node: \(self)")
         return false
       }
     }

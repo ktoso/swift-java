@@ -105,7 +105,11 @@ extension Swift2JavaTranslator {
 
     for input in self.inputs {
       log.trace("Analyzing \(input.filePath)")
+
+      let importedTypesBefore = self.importedTypes
       visitor.visit(sourceFile: input.syntax)
+
+      log.trace("Done analyzing \(input.filePath); Imported types: +\(self.importedTypes.count - importedTypesBefore.count)\n// \(importedTypesBefore.keys)\n// \(self.importedTypes.keys))")
     }
 
     // If any API uses 'Foundation.Data', import 'Data' as if it's declared in
