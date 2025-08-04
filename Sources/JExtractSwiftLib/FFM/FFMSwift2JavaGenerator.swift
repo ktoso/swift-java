@@ -281,7 +281,9 @@ extension FFMSwift2JavaGenerator {
     if decl.swiftNominal.isSendable {
       printer.print("@ThreadSafe // Sendable")
     }
-    printer.printBraceBlock("public final class \(decl.swiftNominal.name) extends FFMSwiftInstance implements \(parentProtocol)") {
+    let name = decl.swiftNominal.name
+    precondition(!name.contains("."), "Nominal name must not contain '.'! Unhandled nested type '\(name)'?")
+    printer.printBraceBlock("public final class \(name) extends FFMSwiftInstance implements \(parentProtocol)") {
       printer in
       // Constants
       printClassConstants(printer: &printer)

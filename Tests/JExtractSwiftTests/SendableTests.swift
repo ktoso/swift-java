@@ -14,6 +14,7 @@
 
 import JExtractSwiftLib
 import Testing
+import JavaKitConfigurationShared
 
 final class SendableTests {
   let source =
@@ -24,7 +25,8 @@ final class SendableTests {
 
   @Test("Import: Sendable struct (ffm)")
   func sendableStruct_ffm() throws {
-
+    let x = Configuration()
+    
     try assertOutput(
       input: source, .ffm, .java,
       expectedChunks: [

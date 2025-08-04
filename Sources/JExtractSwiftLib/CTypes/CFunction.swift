@@ -27,6 +27,7 @@ public struct CFunction {
   public var isVariadic: Bool
 
   public init(resultType: CType, name: String, parameters: [CParameter], isVariadic: Bool) {
+    precondition(!name.contains("."), "CFunction name must not contain '.'! Unhandled nested type '\(name)'?")
     self.resultType = resultType
     self.name = name
     self.parameters = parameters

@@ -465,6 +465,7 @@ let package = Package(
       name: "JavaKitMacroTests",
       dependencies: [
         "JavaKitMacros",
+        "JavaKitConfigurationShared",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
       ],
       swiftSettings: [
@@ -474,7 +475,10 @@ let package = Package(
 
     .testTarget(
       name: "SwiftJavaTests",
-      dependencies: ["SwiftJavaLib"],
+      dependencies: [
+        "SwiftJavaLib",
+        "JavaKitConfigurationShared",
+        ],
       swiftSettings: [
         .swiftLanguageMode(.v5),
         .unsafeFlags(["-I\(javaIncludePath)", "-I\(javaPlatformIncludePath)"])
@@ -493,7 +497,8 @@ let package = Package(
     .testTarget(
       name: "JExtractSwiftTests",
       dependencies: [
-        "JExtractSwiftLib"
+        "JExtractSwiftLib",
+        "JavaKitConfigurationShared",
       ],
       swiftSettings: [
         .swiftLanguageMode(.v5),

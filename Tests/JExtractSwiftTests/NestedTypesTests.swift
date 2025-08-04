@@ -21,11 +21,11 @@ final class NestedTypesTests {
     """
     import Swift
 
-    public enum TopLevel {}
+    public struct TopLevel {}
 
     public extension TopLevel { 
         public struct NestedStruct {
-            func example() -> Int {}
+            public func example() -> Int { 12 }
         }
 
         public enum Errors: Error {
@@ -63,6 +63,47 @@ final class NestedTypesTests {
         @_cdecl("swiftjava_getType_FakeModule_TopLevel.Errors")
         public func swiftjava_getType_FakeModule_TopLevel.Errors() -> UnsafeMutableRawPointer /* Any.Type */ {
           return unsafeBitCast(TopLevel.Errors.self, to: UnsafeMutableRawPointer.self)
+        }
+        """
+      ]
+    )
+  }
+
+  @Test("Analysis should post process nesting")
+  func nesting_analysis() throws {
+    var config = Configuration()
+    config.swiftModule = "FakeModule"
+    let translator = Swift2JavaTranslator(config: config)
+
+    try! translator.analyze(file: "/fake/Fake.swiftinterface", text: input)
+    
+    guard let topLevel = translator.importedGlobalFuncs.first else {
+      #expect(false, "Expected top level type to be detected")
+      return
+    }
+
+    translator.
+    config
+
+  }
+
+  @Test("Nested types: extracted as nested java type")
+  func nested_type_generated() throws {
+    var config = Configuration()
+    config.logLevel = .trace
+
+    try assertOutput(
+      input: input, 
+      config: config,
+      .ffm, .swift,
+      swiftModuleName: "FakeModule",
+      detectChunkByInitialLines: 1,
+      expectedChunks:
+      [
+        """
+        final class TopLevel extends FFMSwiftInstance implements SwiftValue {
+          static final class NestedStruct extends FFMSwiftInstance implements SwiftValue {
+          }
         }
         """
       ]
