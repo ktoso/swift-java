@@ -85,24 +85,31 @@ extension JNISwift2JavaGenerator {
   private func writeJNICacheSource(_ printer: inout CodePrinter) throws {
     printer.print("import JavaKit")
     printer.println()
-    printer.printBraceBlock("enum JNICaches") { printer in
+    printer.printBraceBlock("enum JNICaches") { printer in // FIXME: why global and not inside respective types?
       let enumCases = self.analysis.importedTypes.values.filter { $0.swiftNominal.kind == .enum }.flatMap(\.cases)
       for enumCase in enumCases {
-        printer.print("static var \(JNICaching.cacheName(for: enumCase)): _JNICache!")
+        // FIXME: static var is definitely not ok for this
+        // printer.print("static var \(JNICaching.cacheName(for: enumCase)): _JNICache!")
+        
+        let translatedCase = translatedEnumCase(for: enumCase)!
+        let initializeCache = renderEnumNativeInit(translatedCase)
+        printer.print("static let \(JNICaching.cacheName(for: enumCase)): _JNICache = \(initializeCache)")
       }
-      printer.println()
-      printer.printBraceBlock("static func cleanup()") { printer in
-        for enumCase in enumCases {
-          printer.print("JNICaches.\(JNICaching.cacheName(for: enumCase)) = nil")
-        }
-      }
+
+      // FIXME: cleanup by just mutating global variables is not safe; don't do it for now
+      // printer.println()
+      // printer.printBraceBlock("static func cleanup()") { printer in
+      //   for enumCase in enumCases {
+      //     printer.print("JNICaches.\(JNICaching.cacheName(for: enumCase)) = nil")
+      //   }
+      // }
     }
 
-    printer.println()
-    printer.print(#"@_cdecl("JNI_OnUnload")"#)
-    printer.printBraceBlock("func JNI_OnUnload(javaVM: UnsafeMutablePointer<JavaVM?>!, reserved: UnsafeMutableRawPointer!)") { printer in
-      printer.print("JNICaches.cleanup()")
-    }
+    // printer.println()
+    // printer.print(#"@_cdecl("JNI_OnUnload")"#)
+    // printer.printBraceBlock("func JNI_OnUnload(javaVM: UnsafeMutablePointer<JavaVM?>!, reserved: UnsafeMutableRawPointer!)") { printer in
+    //   printer.print("JNICaches.cleanup()")
+    // }
 
     let fileName = "\(self.swiftModuleName)+JNICaches.swift"
 
@@ -192,8 +199,9 @@ extension JNISwift2JavaGenerator {
     printSwiftFunctionThunk(&printer, enumCase.caseFunction)
     printer.println()
 
-    // Print enum case native init
-    printEnumNativeInit(&printer, translatedCase)
+    // FIXME: NOT ok to initialize ad hoc like this
+    // // Print enum case native init
+    // printEnumNativeInit(&printer, translatedCase)
 
     // Print getAsCase method
     if !translatedCase.translatedValues.isEmpty {
@@ -201,21 +209,17 @@ extension JNISwift2JavaGenerator {
     }
   }
 
-  private func printEnumNativeInit(_ printer: inout CodePrinter, _ enumCase: TranslatedEnumCase) {
-    printCDecl(
-      &printer,
-      javaMethodName: "$nativeInit",
-      parentName: "\(enumCase.original.enumType.nominalTypeDecl.name)$\(enumCase.name)$$JNI",
-      parameters: [],
-      resultType: .void
-    ) { printer in
-      // Setup caching
-      let nativeParametersClassName = "\(javaPackagePath)/\(enumCase.enumName)$\(enumCase.name)$$NativeParameters"
-      let methodSignature = MethodSignature(resultType: .void, parameterTypes: enumCase.parameterConversions.map(\.native.javaType))
-      let methods = #"[.init(name: "<init>", signature: "\#(methodSignature.mangledName)")]"#
+  private func renderEnumNativeInit(_ enumCase: TranslatedEnumCase) -> String {
+    // Setup caching
+    let nativeParametersClassName = "\(javaPackagePath)/\(enumCase.enumName)$\(enumCase.name)$$NativeParameters"
+    let methodSignature = MethodSignature(resultType: .void, parameterTypes: enumCase.parameterConversions.map(\.native.javaType))
+    let methods = #"[.init(name: "<init>", signature: "\#(methodSignature.mangledName)")]"#
 
-      printer.print(#"JNICaches.\#(JNICaching.cacheName(for: enumCase.original)) = _JNICache(environment: environment, className: "\#(nativeParametersClassName)", methods: \#(methods))"#)
-    }
+    
+    return 
+      """
+      _JNICache(environment: try! JavaVirtualMachine.shared().environment(), className: "\(nativeParametersClassName)", methods: \(methods))
+      """
   }
 
   private func printEnumGetAsCaseThunk(
@@ -237,7 +241,10 @@ extension JNISwift2JavaGenerator {
         guard case .\(enumCase.original.name)(\(caseNamesWithLet.joined(separator: ", "))) = \(selfPointer).pointee else {
           fatalError("Expected enum case '\(enumCase.original.name)', but was '\\(\(selfPointer).pointee)'!")
         }
-        let cache$ = JNICaches.\(JNICaching.cacheName(for: enumCase.original))!
+        // guard let cache$ = JNICaches.\(JNICaching.cacheName(for: enumCase.original)) else {
+        //   fatalError("JNICaches.\(JNICaching.cacheName(for: enumCase.original)) was not initialized!")
+        // }
+        let cache$ = JNICaches.\(JNICaching.cacheName(for: enumCase.original))
         let class$ = cache$.javaClass
         let method$ = _JNICache.Method(name: "<init>", signature: "\(methodSignature.mangledName)")
         let constructorID$ = cache$[method$]

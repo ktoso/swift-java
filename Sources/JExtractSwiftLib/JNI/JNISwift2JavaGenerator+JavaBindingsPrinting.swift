@@ -259,16 +259,16 @@ extension JNISwift2JavaGenerator {
 
       // Print record
       printer.printBraceBlock("public record \(caseName)(\(members.joined(separator: ", "))) implements Case") { printer in
-        printer.printBraceBlock("static class $JNI") { printer in
-          printer.print("private static native void $nativeInit();")
-        }
+        // printer.printBraceBlock("static class $JNI") { printer in
+        //   printer.printBraceBlock("static") { printer in
+        //     printer.print("$nativeInit();")
+        //   }
 
-        // Used to ensure static initializer has been calling to trigger caching.
-        printer.print("static void $ensureInitialized() {}")
+        //   printer.print("private static native void $nativeInit();")
+        // }
 
-        printer.printBraceBlock("static") { printer in
-          printer.print("$JNI.$nativeInit();")
-        }
+        // // Used to ensure static initializer has been calling to trigger caching.
+        // printer.print("static void $ensureInitialized() {}")
 
         let nativeParameters = zip(translatedCase.translatedValues, translatedCase.parameterConversions).flatMap { value, conversion in
           ["\(conversion.native.javaType) \(value.parameter.name)"]
@@ -281,7 +281,8 @@ extension JNISwift2JavaGenerator {
         &printer,
         translatedCase.getAsCaseFunction,
         prefix: { printer in
-          printer.print("\(caseName).$ensureInitialized();")
+          // printer.print("\(caseName).$ensureInitialized();")
+          // printer.print("\(caseName).$JNI.$nativeInit();")
         }
       )
       printer.println()
