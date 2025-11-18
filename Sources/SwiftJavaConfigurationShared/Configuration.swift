@@ -101,6 +101,16 @@ public struct Configuration: Codable {
 
 }
 
+extension Configuration {
+  public func shouldLog(_ level: LogLevel) -> Bool { 
+    guard let configuredLevel = self.logLevel else {
+      return false
+    }
+
+    return level >= configuredLevel
+  }
+}
+
 /// Represents a maven-style Java dependency.
 public struct JavaDependencyDescriptor: Hashable, Codable {
   public var groupID: String
@@ -328,4 +338,68 @@ extension LogLevel {
       }
     try container.encode(text)
   }
+}
+
+extension LogLevel {
+  internal var naturalIntegralValue: Int {
+    switch self {
+    case .trace:
+      return 0
+    case .debug:
+      return 1
+    case .info:
+      return 2
+    case .notice:
+      return 3
+    case .warning:
+      return 4
+    case .error:
+      return 5
+    case .critical:
+      return 6
+    }
+  }
+}
+
+extension LogLevel: Comparable {
+  public static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
+    lhs.naturalIntegralValue < rhs.naturalIntegralValue
+  }
+}
+
+/// We share this function here because the SwiftPM plugin must also determine the expected output files,
+/// which depend on the effect of the filtering...
+public func shouldImportJavaClass(_ javaClassName: String, config: Configuration) -> Bool {
+  // If we have an inclusive filter, import only types from it
+  if let includes = config.filterInclude, !includes.isEmpty {
+    let anyIncludeFilterMatched = includes.contains { include in
+      if javaClassName.starts(with: include) {
+        if config.shouldLog(.info) {
+          print("[swift-java:print] Skip Java type: \(javaClassName) (does not match any include filter)") // FIXME: only in verbose mode; we cannot depend on logger here...
+        }
+        return true
+      }
+
+      return false
+    }
+
+    guard anyIncludeFilterMatched else {
+      if config.shouldLog(.info) {
+        print("[swift-java:print] Skip Java type: \(javaClassName) (does not match any include filter)") // FIXME: only in verbose mode; we cannot depend on logger here...
+      }
+      return false
+    }
+  }
+  // If we have an exclude filter, check for it as well
+  for exclude in config.filterExclude ?? [] {
+    if javaClassName.starts(with: exclude) {
+      if config.shouldLog(.info) {
+        print("[swift-java:print] Skip Java type: \(javaClassName) (does match exclude filter: \(exclude))") // FIXME: only in verbose mode; we cannot depend on logger here...
+      }
+      return false
+    }
+  }
+
+  // The class matches import filters, if any, and was not excluded.
+  return true
 }

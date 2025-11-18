@@ -168,7 +168,7 @@ struct SwiftJavaBuildToolPlugin: SwiftJavaPluginProtocol, BuildToolPlugin {
     // Add all the core Java stdlib modules as --depends-on
     let javaStdlibModules = getExtractedJavaStdlibModules()
     log("Include Java standard library SwiftJava modules: \(javaStdlibModules)")
-    arguments += javaStdlibModules.flatMap { ["--depends-on", $0] }
+    arguments += javaStdlibModules._uniquePreservingOrder().flatMap { ["--depends-on", $0] }
 
     if !outputSwiftFiles.isEmpty {
       arguments += [ configFile.path(percentEncoded: false) ]
@@ -266,4 +266,15 @@ func getExtractedJavaStdlibModules() -> [String] {
     }
     return url.lastPathComponent
   }.sorted()
+}
+
+extension Array where Element: Hashable {
+  // Naive "unique" implementation for the SwiftJavaPlugin because plugins cannot have dependencies.
+  // Outside of plugins we'd use SortedSet, but this is good enough for the plugin for now; We could improve it later on.
+  fileprivate func _uniquePreservingOrder() -> [Element] {
+    var seen = Set<Element>()
+    return self.filter { element in
+      seen.insert(element).inserted == false
+    }
+  }
 }
