@@ -115,8 +115,79 @@ extension JNISwift2JavaGenerator {
     }
   }
 
+  /// Prints the extension needed to make allow upcalls from Swift to Java for protocols
+  private func printSwiftInterfaceWrapper(
+    _ printer: inout CodePrinter,
+    _ translatedWrapper: JavaInterfaceSwiftWrapper
+  ) throws {
+    printer.printBraceBlock("protocol \(translatedWrapper.wrapperName): \(translatedWrapper.swiftName)") { printer in
+      printer.print("var \(translatedWrapper.javaInterfaceVariableName): \(translatedWrapper.javaInterfaceName) { get }")
+    }
+    printer.println()
+    printer.printBraceBlock("extension \(translatedWrapper.wrapperName)") { printer in
+      for function in translatedWrapper.functions {
+        printInterfaceWrapperFunctionImpl(&printer, function, inside: translatedWrapper)
+        printer.println()
+      }
+
+      // FIXME: Add support for protocol variables https://github.com/swiftlang/swift-java/issues/457
+//      for variable in translatedWrapper.variables {
+//        printerInterfaceWrapperVariable(&printer, variable, inside: translatedWrapper)
+//        printer.println()
+//      }
+    }
+  }
+
+  private func printInterfaceWrapperFunctionImpl(
+    _ printer: inout CodePrinter,
+    _ function: JavaInterfaceSwiftWrapper.Function,
+    inside wrapper: JavaInterfaceSwiftWrapper
+  ) {
+    printer.printBraceBlock(function.swiftDecl.signatureString) { printer in
+      let upcallArguments = zip(
+        function.originalFunctionSignature.parameters,
+        function.parameterConversions
+      ).map { param, conversion in
+        // Wrap-java does not extract parameter names, so no labels
+        conversion.render(&printer, param.parameterName!)
+      }
+
+      let javaUpcall = "\(wrapper.javaInterfaceVariableName).\(function.swiftFunctionName)(\(upcallArguments.joined(separator: ", ")))"
+
+      let resultType = function.originalFunctionSignature.result.type
+      let result = function.resultConversion.render(&printer, javaUpcall)
+      if resultType.isVoid {
+        printer.print(result)
+      } else {
+        printer.print("return \(result)")
+      }
+    }
+  }
+
+  private func printerInterfaceWrapperVariable(
+    _ printer: inout CodePrinter,
+    _ variable: JavaInterfaceSwiftWrapper.Variable,
+    inside wrapper: JavaInterfaceSwiftWrapper
+  ) {
+    // FIXME: Add support for variables. This won't get printed yet
+    // so we no need to worry about fatalErrors.
+    printer.printBraceBlock(variable.swiftDecl.signatureString) { printer in
+      printer.printBraceBlock("get") { printer in
+        printer.print("fatalError()")
+      }
+
+      if let setter = variable.setter {
+        printer.printBraceBlock("set") { printer in
+          printer.print("fatalError()")
+        }
+      }
+    }
+  }
+
   private func printGlobalSwiftThunkSources(_ printer: inout CodePrinter) throws {
     printHeader(&printer)
+
+    printJNIOnLoad(&printer)
 
     for decl in analysis.importedGlobalFuncs {
       printSwiftFunctionThunk(&printer, decl)
@@ -129,6 +200,18 @@ extension JNISwift2JavaGenerator {
     }
   }
 
+  private func printJNIOnLoad(_ printer: inout CodePrinter) {
+    printer.print(
+      """
+      @_cdecl("JNI_OnLoad")
+      func JNI_OnLoad(javaVM: JavaVMPointer, reserved: UnsafeMutableRawPointer) -> jint {
+        SwiftJavaRuntimeSupport._JNI_OnLoad(javaVM, reserved)
+        return JNI_VERSION_1_6
+      }
+      """
+    )
+  }
+
   private func printNominalTypeThunks(_ printer: inout CodePrinter, _ type: ImportedNominalType) throws {
     printHeader(&printer)
 
@@ -139,7 +222,7 @@ extension JNISwift2JavaGenerator {
     case .actor, .class, .enum, .struct:
       printConcreteTypeThunks(&printer, type)
     case .protocol:
-      printProtocolThunks(&printer, type)
+      try printProtocolThunks(&printer, type)
     }
   }
 
@@ -169,15 +252,62 @@ extension JNISwift2JavaGenerator {
       printer.println()
     }
 
+    printToStringMethods(&printer, type)
     printTypeMetadataAddressThunk(&printer, type)
     printer.println()
     printDestroyFunctionThunk(&printer, type)
   }
 
-  private func printProtocolThunks(_ printer: inout CodePrinter, _ type: ImportedNominalType) {
-    let protocolName = type.swiftNominal.name
+  private func printProtocolThunks(_ printer: inout CodePrinter, _ type: ImportedNominalType) throws {
+    guard let protocolWrapper = self.interfaceProtocolWrappers[type] else {
+      return
+    }
+
+    try printSwiftInterfaceWrapper(&printer, protocolWrapper)
   }
 
+  private func printToStringMethods(_ printer: inout CodePrinter, _ type: ImportedNominalType) {
+    let selfPointerParam = JavaParameter(name: "selfPointer", type: .long)
+    let parentName = type.qualifiedName
+
+    printCDecl(
+      &printer,
+      javaMethodName: "$toString",
+      parentName: type.swiftNominal.qualifiedName,
+      parameters: [
+        selfPointerParam
+      ],
+      resultType: .javaLangString
+    ) { printer in
+      let selfVar = self.printSelfJLongToUnsafeMutablePointer(&printer, swiftParentName: parentName, selfPointerParam)
+
+      printer.print(
+        """
+        return String(describing: \(selfVar).pointee).getJNIValue(in: environment)
+        """
+      )
+    }
+
+    printer.println()
+
+    printCDecl(
+      &printer,
+      javaMethodName: "$toDebugString",
+      parentName: type.swiftNominal.qualifiedName,
+      parameters: [
+        selfPointerParam
+      ],
+      resultType: .javaLangString
+    ) { printer in
+      let selfVar = self.printSelfJLongToUnsafeMutablePointer(&printer, swiftParentName: parentName, selfPointerParam)
+
+      printer.print(
+        """
+        return String(reflecting: \(selfVar).pointee).getJNIValue(in: environment)
+        """
+      )
+    }
+  }
 
   private func printEnumDiscriminator(_ printer: inout CodePrinter, _ type: ImportedNominalType) {
     let selfPointerParam = JavaParameter(name: "selfPointer", type: .long)
@@ -217,11 +347,19 @@ extension JNISwift2JavaGenerator {
   }
 
   private func renderEnumCaseCacheInit(_ enumCase: TranslatedEnumCase) -> String {
-      let nativeParametersClassName = "\(javaPackagePath)/\(enumCase.enumName)$\(enumCase.name)$$NativeParameters"
+      let nativeParametersClassName = "\(enumCase.enumName)$\(enumCase.name)$_NativeParameters"
       let methodSignature = MethodSignature(resultType: .void, parameterTypes: enumCase.parameterConversions.map(\.native.javaType))
-      let methods = #"[.init(name: "<init>", signature: "\#(methodSignature.mangledName)")]"#
 
-      return #"_JNIMethodIDCache(environment: try! JavaVirtualMachine.shared().environment(), className: "\#(nativeParametersClassName)", methods: \#(methods))"#
+      return renderJNICacheInit(className: nativeParametersClassName, methods: [("<init>", methodSignature)])
+  }
+
+  private func renderJNICacheInit(className: String, methods: [(String, MethodSignature)]) -> String {
+      let fullClassName = "\(javaPackagePath)/\(className)"
+      let methods = methods.map { name, signature in
+          #".init(name: "\#(name)", signature: "\#(signature.mangledName)")"#
+      }.joined(separator: ",\n")
+
+      return #"_JNIMethodIDCache(className: "\#(fullClassName)", methods: [\#(methods)])"#
   }
 
   private func printEnumGetAsCaseThunk(
@@ -272,6 +410,8 @@ extension JNISwift2JavaGenerator {
       return
     }
 
+    printSwiftFunctionHelperClasses(&printer, decl)
+
     printCDecl(
       &printer,
       translatedDecl
@@ -279,6 +419,96 @@ extension JNISwift2JavaGenerator {
       self.printFunctionDowncall(&printer, decl)
     }
   }
+
+
+  private func printSwiftFunctionHelperClasses(
+    _ printer: inout CodePrinter,
+    _ decl: ImportedFunc
+  ) {
+    let protocolParameters = decl.functionSignature.parameters.compactMap { parameter in
+      if let concreteType = parameter.type.typeIn(
+        genericParameters: decl.functionSignature.genericParameters,
+        genericRequirements: decl.functionSignature.genericRequirements
+      ) {
+        return (parameter, concreteType)
+      }
+
+      switch parameter.type {
+        case .opaque(let protocolType),
+          .existential(let protocolType):
+        return (parameter, protocolType)
+
+      default:
+        return nil
+      }
+    }.map { parameter, protocolType in
+      // We flatten any composite types
+      switch protocolType {
+      case .composite(let protocols):
+        return (parameter, protocols)
+
+      default:
+        return (parameter, [protocolType])
+      }
+    }
+
+    // For each parameter that is a generic or a protocol,
+    // we generate a Swift class that conforms to all of those.
+    for (parameter, protocolTypes) in protocolParameters {
+      let protocolWrappers: [JavaInterfaceSwiftWrapper] = protocolTypes.compactMap { protocolType in
+        guard let importedType = self.asImportedNominalTypeDecl(protocolType),
+              let wrapper = self.interfaceProtocolWrappers[importedType]
+        else {
+          return nil
+        }
+        return wrapper
+      }
+
+      // Make sure we can generate wrappers for all the protocols
+      // that the parameter requires
+      guard protocolWrappers.count == protocolTypes.count else {
+        // We cannot extract a wrapper for this class
+        // so it must only be passed in by JExtract instances
+        continue
+      }
+
+      guard let parameterName = parameter.parameterName else {
+        // TODO: Throw
+        fatalError()
+      }
+      let swiftClassName = JNISwift2JavaGenerator.protocolParameterWrapperClassName(
+        methodName: decl.name,
+        parameterName: parameterName,
+        parentName: decl.parentType?.asNominalType?.nominalTypeDecl.qualifiedName ?? swiftModuleName
+      )
+      let implementingProtocols = protocolWrappers.map(\.wrapperName).joined(separator: ", ")
+
+      printer.printBraceBlock("final class \(swiftClassName): \(implementingProtocols)") { printer in
+        let variables: [(String, String)] = protocolWrappers.map { wrapper in
+          return (wrapper.javaInterfaceVariableName, wrapper.javaInterfaceName)
+        }
+        for (name, type) in variables {
+          printer.print("let \(name): \(type)")
+        }
+        printer.println()
+        let initializerParameters = variables.map { "\($0): \($1)" }.joined(separator: ", ")
+
+        printer.printBraceBlock("init(\(initializerParameters))") { printer in
+          for (name, _) in variables {
+            printer.print("self.\(name) = \(name)")
+          }
+        }
+      }
+    }
+  }
+
+  private func asImportedNominalTypeDecl(_ type: SwiftType) -> ImportedNominalType? {
+      self.analysis.importedTypes.first(where: ( { name, nominalType in
+        nominalType.swiftType == type
+      })).map {
+        $0.value
+      }
+    }
 
   private func printFunctionDowncall(
     _ printer: inout CodePrinter,
@@ -347,6 +577,19 @@ extension JNISwift2JavaGenerator {
       }
 
       result = "\(callee).\(decl.name) = \(newValueArgument)"
+    case .subscriptGetter:
+      let parameters = arguments.joined(separator: ", ")
+      result = "\(callee)[\(parameters)]"
+    case .subscriptSetter:
+      guard let newValueArgument = arguments.last else {
+        fatalError("Setter did not contain newValue parameter: \(decl)")
+      }
+
+      var argumentsWithoutNewValue = arguments
+      argumentsWithoutNewValue.removeLast()
+
+      let parameters = argumentsWithoutNewValue.joined(separator: ", ")
+      result = "\(callee)[\(parameters)] = \(newValueArgument)"
     }
 
     // Lower the result.
@@ -533,5 +776,45 @@ extension JNISwift2JavaGenerator {
       """
     )
     return newSelfParamName
+  }
+
+  static func protocolParameterWrapperClassName(
+    methodName: String,
+    parameterName: String,
+    parentName: String?
+  ) -> String {
+    let parent = if let parentName {
+      "\(parentName)_"
+    } else {
+      ""
+    }
+    return "_\(parent)\(methodName)_\(parameterName)_Wrapper"
+  }
+}
+
+extension SwiftNominalTypeDeclaration {
+  private var safeProtocolName: String {
+    self.qualifiedName.replacingOccurrences(of: ".", with: "_")
+  }
+
+  /// The name of the corresponding `@JavaInterface` of this type.
+  var javaInterfaceName: String {
+    "Java\(safeProtocolName)"
+  }
+
+  var javaInterfaceSwiftProtocolWrapperName: String {
+    "SwiftJava\(safeProtocolName)Wrapper"
+  }
+
+  var javaInterfaceVariableName: String {
+    "_\(javaInterfaceName.firstCharacterLowercased)Interface"
+  }
+
+  var generatedJavaClassMacroName: String {
+    if let parent {
+      return "\(parent.generatedJavaClassMacroName).Java\(self.name)"
+    }
+
+    return "Java\(self.name)"
   }
 }
