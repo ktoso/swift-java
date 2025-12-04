@@ -170,17 +170,17 @@ struct JNIEnumTests {
         """,
         """
         public record First() implements Case {
-          record _NativeParameters() {}
+          record $NativeParameters() {}
         }
         """,
         """
         public record Second(java.lang.String arg0) implements Case {
-          record _NativeParameters(java.lang.String arg0) {}
+          record $NativeParameters(java.lang.String arg0) {}
         }
         """,
         """
         public record Third(long x, int y) implements Case {
-          record _NativeParameters(long x, int y) {}
+          record $NativeParameters(long x, int y) {}
         }
         """
       ])
@@ -268,7 +268,7 @@ struct JNIEnumTests {
           if (getDiscriminator() != Discriminator.SECOND) {
             return Optional.empty();
           }
-          Second._NativeParameters $nativeParameters = MyEnum.$getAsSecond(this.$memoryAddress());
+          Second.$NativeParameters $nativeParameters = MyEnum.$getAsSecond(this.$memoryAddress());
           return Optional.of(new Second($nativeParameters.arg0));
         }
         """,
@@ -277,7 +277,7 @@ struct JNIEnumTests {
           if (getDiscriminator() != Discriminator.THIRD) {
             return Optional.empty();
           }
-          Third._NativeParameters $nativeParameters = MyEnum.$getAsThird(this.$memoryAddress());
+          Third.$NativeParameters $nativeParameters = MyEnum.$getAsThird(this.$memoryAddress());
           return Optional.of(new Third($nativeParameters.x, $nativeParameters.y));
         }
         """

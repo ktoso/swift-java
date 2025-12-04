@@ -23,8 +23,6 @@ package enum SwiftAPIKind {
   case getter
   case setter
   case enumCase
-  case subscriptGetter
-  case subscriptSetter
 }
 
 /// Describes a Swift nominal type (e.g., a class, struct, enum) that has been
@@ -181,8 +179,6 @@ public final class ImportedFunc: ImportedDecl, CustomStringConvertible {
     case .setter: "setter:"
     case .enumCase: "case:"
     case .function, .initializer: ""
-    case .subscriptGetter: "subscriptGetter:"
-    case .subscriptSetter: "subscriptSetter:"
     }
 
     let context = if let parentType {
@@ -262,14 +258,5 @@ extension ImportedFunc {
     } else {
       return "set\(self.name.firstCharacterUppercased)"
     }
-  }
-}
-
-extension ImportedNominalType: Hashable {
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(ObjectIdentifier(self))
-  }
-  public static func == (lhs: ImportedNominalType, rhs: ImportedNominalType) -> Bool {
-    return lhs === rhs
   }
 }

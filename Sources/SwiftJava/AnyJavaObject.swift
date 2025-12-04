@@ -66,7 +66,7 @@ extension AnyJavaObject {
     javaHolder.object
   }
 
-  /// Retrieve the environment in which this Java object was created.
+  /// Retrieve the environment in which this Java object resides.
   public var javaEnvironment: JNIEnvironment {
     javaHolder.environment
   }

@@ -12,9 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import JavaTypes
-import OrderedCollections
 
 // MARK: Defaults
 
@@ -42,8 +40,6 @@ extension JNISwift2JavaGenerator {
   package func writeExportedJavaSources(_ printer: inout CodePrinter) throws {
     let importedTypes = analysis.importedTypes.sorted(by: { (lhs, rhs) in lhs.key < rhs.key })
 
-    var exportedFileNames: OrderedSet<String> = []
-
     // Each parent type goes into its own file
     // any nested types are printed inside the body as `static class`
     for (_, ty) in importedTypes.filter({ _, type in type.parent == nil }) {
@@ -56,7 +52,6 @@ extension JNISwift2JavaGenerator {
         javaPackagePath: javaPackagePath,
         filename: filename
       ) {
-        exportedFileNames.append(outputFile.path(percentEncoded: false))
         logger.info("[swift-java] Generated: \(ty.swiftNominal.name.bold).java (at \(outputFile))")
       }
     }
@@ -70,23 +65,9 @@ extension JNISwift2JavaGenerator {
       javaPackagePath: javaPackagePath,
       filename: filename
     ) {
-      exportedFileNames.append(outputFile.path(percentEncoded: false))
       logger.info("[swift-java] Generated: \(self.swiftModuleName).java (at \(outputFile))")
     }
-
-    // Write java sources list file
-    if let generatedJavaSourcesListFileOutput = config.generatedJavaSourcesListFileOutput, !exportedFileNames.isEmpty {
-      let outputPath = URL(fileURLWithPath: javaOutputDirectory).appending(path: generatedJavaSourcesListFileOutput)
-      try exportedFileNames.joined(separator: "\n").write(
-        to: outputPath,
-        atomically: true,
-        encoding: .utf8
-      )
-      logger.info("Generated file at \(outputPath)")
-    }
   }
-
-
 
   private func printModule(_ printer: inout CodePrinter) {
     printHeader(&printer)
@@ -132,29 +113,20 @@ extension JNISwift2JavaGenerator {
   }
 
   private func printProtocol(_ printer: inout CodePrinter, _ decl: ImportedNominalType) {
-    var extends = [String]()
-
-    // If we cannot generate Swift wrappers
-    // that allows the user to implement the wrapped interface in Java
-    // then we require only JExtracted types can conform to this.
-    if !self.interfaceProtocolWrappers.keys.contains(decl) {
-      extends.append("JNISwiftInstance")
-    }
-    let extendsString = extends.isEmpty ? "" : " extends \(extends.joined(separator: ", "))"
-
-    printer.printBraceBlock("public interface \(decl.swiftNominal.name)\(extendsString)") { printer in
+    let extends = ["JNISwiftInstance"]
+    printer.printBraceBlock("public interface \(decl.swiftNominal.name) extends \(extends.joined(separator: ", "))") { printer in
       for initializer in decl.initializers {
-        printFunctionDowncallMethods(&printer, initializer, skipMethodBody: true)
+        printFunctionDowncallMethods(&printer, initializer, signaturesOnly: true)
         printer.println()
       }
 
       for method in decl.methods {
-        printFunctionDowncallMethods(&printer, method, skipMethodBody: true)
+        printFunctionDowncallMethods(&printer, method, signaturesOnly: true)
         printer.println()
       }
 
       for variable in decl.variables {
-        printFunctionDowncallMethods(&printer, variable, skipMethodBody: true)
+        printFunctionDowncallMethods(&printer, variable, signaturesOnly: true)
         printer.println()
       }
     }
@@ -212,10 +184,6 @@ extension JNISwift2JavaGenerator {
         public static \(decl.swiftNominal.name) wrapMemoryAddressUnsafe(long selfPointer, SwiftArena swiftArena) {
           return new \(decl.swiftNominal.name)(selfPointer, swiftArena);
         }
-        
-        public static \(decl.swiftNominal.name) wrapMemoryAddressUnsafe(long selfPointer) {
-          return new \(decl.swiftNominal.name)(selfPointer, SwiftMemoryManagement.GLOBAL_SWIFT_JAVA_ARENA);
-        }
         """
       )
 
@@ -260,36 +228,10 @@ extension JNISwift2JavaGenerator {
         printer.println()
       }
 
-      printToStringMethods(&printer, decl)
-      printer.println()
-
       printTypeMetadataAddressFunction(&printer, decl)
       printer.println()
       printDestroyFunction(&printer, decl)
     }
-  }
-
-
-  private func printToStringMethods(_ printer: inout CodePrinter, _ decl: ImportedNominalType) {
-    printer.printBraceBlock("public String toString()") { printer in
-      printer.print(
-        """
-        return $toString(this.$memoryAddress());
-        """
-      )
-    }
-    printer.print("private static native java.lang.String $toString(long selfPointer);")
-
-    printer.println()
-
-    printer.printBraceBlock("public String toDebugString()") { printer in
-      printer.print(
-        """
-        return $toDebugString(this.$memoryAddress());
-        """
-      )
-    }
-    printer.print("private static native java.lang.String $toDebugString(long selfPointer);")
   }
 
   private func printHeader(_ printer: inout CodePrinter) {
@@ -417,10 +359,10 @@ extension JNISwift2JavaGenerator {
           ["\(conversion.native.javaType) \(value.parameter.name)"]
         }
 
-        printer.print("record _NativeParameters(\(nativeParameters.joined(separator: ", "))) {}")
+        printer.print("record $NativeParameters(\(nativeParameters.joined(separator: ", "))) {}")
       }
 
-      self.printJavaBindingWrapperMethod(&printer, translatedCase.getAsCaseFunction, skipMethodBody: false)
+      self.printJavaBindingWrapperMethod(&printer, translatedCase.getAsCaseFunction, signaturesOnly: false)
       printer.println()
     }
   }
@@ -428,7 +370,7 @@ extension JNISwift2JavaGenerator {
   private func printFunctionDowncallMethods(
     _ printer: inout CodePrinter,
     _ decl: ImportedFunc,
-    skipMethodBody: Bool = false
+    signaturesOnly: Bool = false
   ) {
     guard translatedDecl(for: decl) != nil else {
       // Failed to translate. Skip.
@@ -439,7 +381,7 @@ extension JNISwift2JavaGenerator {
 
     printJavaBindingWrapperHelperClass(&printer, decl)
 
-    printJavaBindingWrapperMethod(&printer, decl, skipMethodBody: skipMethodBody)
+    printJavaBindingWrapperMethod(&printer, decl, signaturesOnly: signaturesOnly)
   }
 
   /// Print the helper type container for a user-facing Java API.
@@ -482,22 +424,18 @@ extension JNISwift2JavaGenerator {
     )
   }
 
-  private func printJavaBindingWrapperMethod(
-    _ printer: inout CodePrinter,
-    _ decl: ImportedFunc,
-    skipMethodBody: Bool
-  ) {
+  private func printJavaBindingWrapperMethod(_ printer: inout CodePrinter, _ decl: ImportedFunc, signaturesOnly: Bool) {
     guard let translatedDecl = translatedDecl(for: decl) else {
       fatalError("Decl was not translated, \(decl)")
     }
-    printJavaBindingWrapperMethod(&printer, translatedDecl, importedFunc: decl, skipMethodBody: skipMethodBody)
+    printJavaBindingWrapperMethod(&printer, translatedDecl, importedFunc: decl, signaturesOnly: signaturesOnly)
   }
 
   private func printJavaBindingWrapperMethod(
     _ printer: inout CodePrinter,
     _ translatedDecl: TranslatedFunctionDecl,
     importedFunc: ImportedFunc? = nil,
-    skipMethodBody: Bool
+    signaturesOnly: Bool
   ) {
     var modifiers = ["public"]
     if translatedDecl.isStatic {
@@ -528,31 +466,10 @@ extension JNISwift2JavaGenerator {
     let parametersStr = parameters.joined(separator: ", ")
 
     // Print default global arena variation
-    // If we have enabled javaCallbacks we must emit default
-    // arena methods for protocols, as this is what
-    // Swift will call into, when you call a interface from Swift.
-    let shouldGenerateGlobalArenaVariation: Bool
-    let isParentProtocol = importedFunc?.parentType?.asNominalType?.isProtocol ?? false
-
     if config.effectiveMemoryManagementMode.requiresGlobalArena && translatedSignature.requiresSwiftArena {
-      shouldGenerateGlobalArenaVariation = true
-    } else if isParentProtocol, translatedSignature.requiresSwiftArena, config.effectiveEnableJavaCallbacks {
-      shouldGenerateGlobalArenaVariation = true
-    } else {
-      shouldGenerateGlobalArenaVariation = false
-    }
-
-    if shouldGenerateGlobalArenaVariation {
       if let importedFunc {
         printDeclDocumentation(&printer, importedFunc)
       }
-      var modifiers = modifiers
-
-      // If we are a protocol, we emit this as default method
-      if isParentProtocol {
-        modifiers.insert("default", at: 1)
-      }
-
       printer.printBraceBlock("\(annotationsStr)\(modifiers.joined(separator: " ")) \(resultType) \(translatedDecl.name)(\(parametersStr))\(throwsClause)") { printer in
         let globalArenaName = "SwiftMemoryManagement.GLOBAL_SWIFT_JAVA_ARENA"
         let arguments = translatedDecl.translatedFunctionSignature.parameters.map(\.parameter.name) + [globalArenaName]
@@ -573,7 +490,7 @@ extension JNISwift2JavaGenerator {
       printDeclDocumentation(&printer, importedFunc)
     }
     let signature = "\(annotationsStr)\(modifiers.joined(separator: " ")) \(resultType) \(translatedDecl.name)(\(parameters.joined(separator: ", ")))\(throwsClause)"
-    if skipMethodBody {
+    if signaturesOnly {
       printer.print("\(signature);")
     } else {
       printer.printBraceBlock(signature) { printer in

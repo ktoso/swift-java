@@ -812,10 +812,11 @@ extension LoweredFunctionSignature {
 
     // Build callee expression.
     let callee: ExprSyntax = if let selfExpr {
-      switch apiKind {
+      if case .initializer = apiKind {
         // Don't bother to create explicit ${Self}.init expression.
-        case .initializer, .subscriptGetter, .subscriptSetter: selfExpr
-        default: ExprSyntax(MemberAccessExprSyntax(base: selfExpr, name: .identifier(swiftAPIName)))
+        selfExpr
+      } else {
+        ExprSyntax(MemberAccessExprSyntax(base: selfExpr, name: .identifier(swiftAPIName)))
       }
     } else {
       ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(swiftAPIName)))
@@ -844,18 +845,6 @@ extension LoweredFunctionSignature {
     case .enumCase:
       // This should not be called, but let's fatalError.
       fatalError("Enum cases are not supported with FFM.")
-
-    case .subscriptGetter:
-      let parameters = paramExprs.map { $0.description }.joined(separator: ", ")
-      resultExpr = "\(callee)[\(raw: parameters)]"
-    case .subscriptSetter:
-      assert(paramExprs.count >= 1)
-
-      var argumentsWithoutNewValue = paramExprs
-      let newValueArgument = argumentsWithoutNewValue.removeLast()
-
-      let parameters = argumentsWithoutNewValue.map { $0.description }.joined(separator: ", ")
-      resultExpr = "\(callee)[\(raw: parameters)] = \(newValueArgument)"
     }
 
     // Lower the result.

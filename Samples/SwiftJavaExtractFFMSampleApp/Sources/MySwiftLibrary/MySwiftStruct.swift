@@ -16,14 +16,10 @@ public struct MySwiftStruct {
 
   private var cap: Int
   private var len: Int
-  private var subscriptValue: Int
-  private var subscriptArray: [Int] 
 
   public init(cap: Int, len: Int) {
     self.cap = cap
     self.len = len
-    self.subscriptValue = 0
-    self.subscriptArray = [10, 20, 15, 75]
   }
 
   public func voidMethod() {
@@ -64,23 +60,5 @@ public struct MySwiftStruct {
 
   public func makeRandomIntMethod() -> Int {
     return Int.random(in: 1..<256)
-  }
-
-  public func getSubscriptValue() -> Int {
-    return self.subscriptValue
-  }
-
-  public func getSubscriptArrayValue(index: Int) -> Int {
-    return self.subscriptArray[index]
-  }
-
-  public subscript() -> Int {
-    get { return subscriptValue }
-    set { subscriptValue = newValue }
-  }
-
-  public subscript(index: Int) -> Int {
-    get { return subscriptArray[index] }
-    set { subscriptArray[index] = newValue }
   }
 }

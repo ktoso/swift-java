@@ -26,32 +26,31 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class AsyncTest {
     @Test
-    void asyncSum() throws Exception {
-        Future<Long> future = MySwiftLibrary.asyncSum(10, 12);
+    void asyncSum() {
+        CompletableFuture<Long> future = MySwiftLibrary.asyncSum(10, 12);
 
-        Long result = future.get();
+        Long result = future.join();
         assertEquals(22, result);
     }
 
     @Test
-    void asyncSleep() throws Exception {
-        Future<Void> future = MySwiftLibrary.asyncSleep();
-        future.get();
+    void asyncSleep() {
+        CompletableFuture<Void> future = MySwiftLibrary.asyncSleep();
+        future.join();
     }
 
     @Test
-    void asyncCopy() throws Exception {
+    void asyncCopy() {
         try (var arena = SwiftArena.ofConfined()) {
             MySwiftClass obj = MySwiftClass.init(10, 5, arena);
-            Future<MySwiftClass> future = MySwiftLibrary.asyncCopy(obj, arena);
+            CompletableFuture<MySwiftClass> future = MySwiftLibrary.asyncCopy(obj, arena);
 
-            MySwiftClass result = future.get();
+            MySwiftClass result = future.join();
 
             assertEquals(10, result.getX());
             assertEquals(5, result.getY());
@@ -60,7 +59,7 @@ public class AsyncTest {
 
     @Test
     void asyncThrows() {
-        Future<Void> future = MySwiftLibrary.asyncThrows();
+        CompletableFuture<Void> future = MySwiftLibrary.asyncThrows();
 
         ExecutionException ex = assertThrows(ExecutionException.class, future::get);
 
@@ -71,14 +70,14 @@ public class AsyncTest {
     }
 
     @Test
-    void asyncOptional() throws Exception {
-        Future<OptionalLong> future = MySwiftLibrary.asyncOptional(42);
-        assertEquals(OptionalLong.of(42), future.get());
+    void asyncOptional() {
+        CompletableFuture<OptionalLong> future = MySwiftLibrary.asyncOptional(42);
+        assertEquals(OptionalLong.of(42), future.join());
     }
 
     @Test
-    void asyncString() throws Exception {
-        Future<String> future = MySwiftLibrary.asyncString("hey");
-        assertEquals("hey", future.get());
+    void asyncString() {
+        CompletableFuture<String> future = MySwiftLibrary.asyncString("hey");
+        assertEquals("hey", future.join());
     }
 }

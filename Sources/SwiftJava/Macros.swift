@@ -141,7 +141,6 @@ public macro JavaStaticField(_ javaFieldName: String? = nil, isFinal: Bool = fal
 /// returning method signature, and then, convert the result to the expected `T` type on the Swift side.
 @attached(body)
 public macro JavaMethod(
-  _ javaMethodName: String? = nil,
   typeErasedResult: String? = nil
 ) = #externalMacro(module: "SwiftJavaMacros", type: "JavaMethodMacro")
 
@@ -155,7 +154,9 @@ public macro JavaMethod(
 /// func sayHelloBack(_ i: Int32) -> Double
 /// ```
 @attached(body)
-public macro JavaStaticMethod(_ javaMethodName: String? = nil) = #externalMacro(module: "SwiftJavaMacros", type: "JavaMethodMacro")
+public macro JavaStaticMethod(
+  typeErasedResult: String? = nil
+) = #externalMacro(module: "SwiftJavaMacros", type: "JavaMethodMacro")
 
 /// Macro that marks extensions to specify that all of the @JavaMethod
 /// methods are implementations of Java methods spelled as `native`.

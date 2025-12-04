@@ -65,13 +65,6 @@ public struct Configuration: Codable {
     asyncFuncMode ?? .default
   }
 
-  public var enableJavaCallbacks: Bool?
-  public var effectiveEnableJavaCallbacks: Bool {
-    enableJavaCallbacks ?? false
-  }
-
-  public var generatedJavaSourcesListFileOutput: String?
-
   // ==== wrap-java ---------------------------------------------------------
 
   /// The Java class path that should be passed along to the swift-java tool.
@@ -97,8 +90,6 @@ public struct Configuration: Codable {
 
   /// Exclude input Java types by their package prefix or exact match.
   public var filterExclude: [String]?
-
-  public var singleSwiftFileOutput: String?
 
   // ==== dependencies ---------------------------------------------------------
 
@@ -171,11 +162,7 @@ public func readConfiguration(sourceDir: String, file: String = #fileID, line: U
 /// Configuration is expected to be "JSON-with-comments".
 /// Specifically "//" comments are allowed and will be trimmed before passing the rest of the config into a standard JSON parser.
 public func readConfiguration(configPath: URL, file: String = #fileID, line: UInt = #line) throws -> Configuration? {
-  let configData: Data
-  do {
-    configData = try Data(contentsOf: configPath)
-  } catch {
-    print("Failed to read SwiftJava configuration at '\(configPath.absoluteURL)', error: \(error)")
+  guard let configData = try? Data(contentsOf: configPath) else {
     return nil
   }
 

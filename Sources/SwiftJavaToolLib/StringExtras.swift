@@ -35,11 +35,6 @@ extension String {
     return "`\(self)`"
   }
 
-  /// Returns whether this is a valid Swift function name
-  var isValidSwiftFunctionName: Bool {
-    !self.starts(with: "$")
-  }
-
   /// Replace all occurrences of one character in the string with another.
   public func replacing(_ character: Character, with replacement: Character) -> String {
     return replacingOccurrences(of: String(character), with: String(replacement))

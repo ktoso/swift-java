@@ -386,9 +386,6 @@ let package = Package(
       swiftSettings: [
         .swiftLanguageMode(.v5),
         .unsafeFlags(["-I\(javaIncludePath)", "-I\(javaPlatformIncludePath)"], .when(platforms: [.macOS, .linux, .windows]))
-      ],
-      linkerSettings: [
-        .linkedLibrary("log", .when(platforms: [.android]))
       ]
     ),
 
@@ -460,7 +457,6 @@ let package = Package(
         .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
-        .product(name: "OrderedCollections", package: "swift-collections"),
         "JavaTypes",
         "SwiftJavaShared",
         "SwiftJavaConfigurationShared",
