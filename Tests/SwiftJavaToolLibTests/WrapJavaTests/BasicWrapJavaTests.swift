@@ -199,45 +199,46 @@ final class BasicWrapJavaTests: XCTestCase {
     )
   }
 
-  func test_wrapJava_inheritFromBiFunction() async throws {
+  func test_wrapJava_inheritFromJavaUtilFunctionFunction() async throws {
     let classpathURL = try await compileJava(
       """
       package com.example;
 
-      import java.util.function.BiFunction;
+      import java.util.function.Function;
 
-      interface CallMe<ValueType> extends BiFunction<ValueType, ValueType, ValueType> {
+      interface CallMe<ValueType> extends Function<ValueType, ValueType> {
         @Override
         ValueType apply(
-            ValueType newest,
-            ValueType oldest
+            ValueType value
         );
       }
       """)
 
     try assertWrapJavaOutput(
       javaClassNames: [
-        "java.util.function.BiFunction",
+        "java.util.function.Function",
         "com.example.CallMe",
       ],
       classpath: [classpathURL],
       expectedChunks: [
         """
-        @JavaInterface("com.example.CallMe", extends: BiFunction<ValueType, ValueType, ValueType>.self)
+        @JavaInterface("com.example.CallMe")
         public struct CallMe<ValueType: AnyJavaObject> {
-          /**
-           * Java method `apply`.
-           *
-           * ### Java method signature
-           * ```java
-           * public abstract ValueType com.example.CallMe.apply(ValueType,ValueType)
-           * ```
-           */
-          @JavaMethod(typeErasedResult: "ValueType!")
-            public func apply(_ arg0: ValueType?, _ arg1: ValueType?) -> ValueType!
-          }
+        """,
+        """
+        /**
+         * Java method `apply`.
+         *
+         * ### Java method signature
+         * ```java
+         * public abstract R java.util.function.Function.apply(T)
+         * ```
+         */
+        @JavaMethod(typeErasedResult: "R!")
+        public func apply(_ arg0: ValueType?) -> ValueType!
         """,
       ]
     )
   }
+  
 }

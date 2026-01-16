@@ -60,4 +60,10 @@ struct JavaKitExampleRuntimeTests {
     #expect(reply == 128)
   }
 
+  @Test
+  func javaTypeUsingStdlibTypeWasImportedCorrectly() throws {
+    // This tests that we properly did --depends-on autoamtically in the plugin when wrapping
+    let fun = SpecialFunction()
+  }
+
 }

@@ -441,5 +441,42 @@ final class GenericsWrapJavaTests: XCTestCase {
       ]
     )
   }
+
+  func test_wrapJava_inheritFromJavaUtilFunctionFunction_boundGenerics() async throws {
+    let classpathURL = try await compileJava(
+      """
+      package com.example;
+
+      import java.util.function.Function;
+
+      interface CallMe<ValueType> extends Function<Integer, Integer> {
+      }
+      """)
+
+    try assertWrapJavaOutput(
+      javaClassNames: [
+        "java.util.function.Function",
+        "com.example.CallMe",
+      ],
+      classpath: [classpathURL],
+      expectedChunks: [
+        """
+        @JavaInterface("com.example.CallMe", extends: Function<ValueType, ValueType>.self)
+        public struct CallMe<ValueType: AnyJavaObject> {
+          /**
+           * Java method `apply`.
+           *
+           * ### Java method signature
+           * ```java
+           * public abstract ValueType com.example.CallMe.apply(ValueType,ValueType)
+           * ```
+           */
+          @JavaMethod(typeErasedResult: "ValueType!")
+            public func apply(_ arg0: ValueType?, _ arg1: ValueType?) -> ValueType!
+          }
+        """,
+      ]
+    )
+  }
   
 }
