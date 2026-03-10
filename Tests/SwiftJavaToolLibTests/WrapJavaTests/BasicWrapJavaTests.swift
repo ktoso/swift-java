@@ -274,8 +274,54 @@ final class BasicWrapJavaTests: XCTestCase {
           /// ```
           @JavaMethod(typeErasedResult: "ValueType!")
             public func apply(_ arg0: ValueType?, _ arg1: ValueType?) -> ValueType!
-          }
         """
+      ]
+    )
+  }
+
+  // Test that methods with untranslatable parameter/return types are emitted
+  // as @available(*, unavailable) with doc comments explaining the import errors.
+  func test_wrapJava_failedImportUnavailableMethod() async throws {
+    let classpathURL = try await compileJava(
+      """
+      package com.example;
+
+      import java.math.BigInteger;
+
+      class FailedImportExample {
+        public String goodMethod() { return ""; }
+        public BigInteger badReturnType() { return null; }
+        public void badParamType(BigInteger x) { }
+      }
+      """
+    )
+
+    try assertWrapJavaOutput(
+      javaClassNames: [
+        "com.example.FailedImportExample"
+      ],
+      classpath: [classpathURL],
+      expectedChunks: [
+        // The good method should be imported normally
+        """
+        @JavaMethod
+        open func goodMethod() -> String
+        """,
+        // Bad return type should be unavailable with doc comment
+        """
+        /// ### Swift-Java import errors
+        """,
+        """
+        @available(*, unavailable, message: "swift-java was unable to import this declaration. See doc comments for details.")
+        """,
+        // The bad return type method should still appear
+        """
+        func badReturnType()
+        """,
+        // The bad param type method should still appear
+        """
+        func badParamType(
+        """,
       ]
     )
   }
