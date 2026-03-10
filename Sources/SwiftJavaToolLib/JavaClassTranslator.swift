@@ -391,7 +391,7 @@ extension JavaClassTranslator {
     // Render all of the instance fields as Swift properties.
     let properties = fields.compactMap { field in
       do {
-        return try renderField(field)
+        return try renderField(field, renderFailureAsBestEffortUnavailableDecl: true)
       } catch {
         translator.logUntranslated(
           "Unable to translate '\(javaClass.getName())' static field '\(field.getName())': \(error)"
@@ -406,7 +406,7 @@ extension JavaClassTranslator {
     // Render all of the constructors as Swift initializers.
     let initializers = constructors.compactMap { constructor in
       do {
-        return try renderConstructor(constructor)
+        return try renderConstructor(constructor, renderFailureAsBestEffortUnavailableDecl: true)
       } catch {
         translator.logUntranslated("Unable to translate '\(javaClass.getName())' constructor: \(error)")
         return nil
@@ -416,7 +416,7 @@ extension JavaClassTranslator {
     // Render all of the instance methods in Swift.
     let instanceMethods = methods.methods.compactMap { method in
       do {
-        return try renderMethod(method, implementedInSwift: false)
+        return try renderMethod(method, implementedInSwift: false, renderFailureAsBestEffortUnavailableDecl: true)
       } catch {
         translator.logUntranslated(
           "Unable to translate '\(javaClass.getName())' method '\(method.getName())': \(error)"
@@ -537,7 +537,7 @@ extension JavaClassTranslator {
     let properties = staticFields.compactMap { field in
       // Translate each static field.
       do {
-        return try renderField(field)
+        return try renderField(field, renderFailureAsBestEffortUnavailableDecl: true)
       } catch {
         translator.logUntranslated("Unable to translate '\(javaClass.getName())' field '\(field.getName())': \(error)")
         return nil
@@ -552,7 +552,8 @@ extension JavaClassTranslator {
           method,
           implementedInSwift: /*FIXME:*/ false,
           genericParameters: genericParameters,
-          whereClause: staticMemberWhereClause
+          whereClause: staticMemberWhereClause,
+          renderFailureAsBestEffortUnavailableDecl: true
         )
       } catch {
         translator.logUntranslated(
@@ -799,10 +800,12 @@ extension JavaClassTranslator {
 
   /// Render the given Java constructor as a Swift initializer.
   package func renderConstructor(
-    _ javaConstructor: Constructor<some AnyJavaObject>
+    _ javaConstructor: Constructor<some AnyJavaObject>,
+    renderFailureAsBestEffortUnavailableDecl: Bool = false
   ) throws -> DeclSyntax {
+    var translationErrors = TranslationErrorCollector()
     let parameters: [FunctionParameterSyntax]
-    parameters = try translateJavaParameters(javaConstructor.getParameters()) + ["environment: JNIEnvironment? = nil"]
+    parameters = try translateJavaParameters(javaConstructor.getParameters(), translationErrors: &translationErrors) + ["environment: JNIEnvironment? = nil"]
     let parametersStr = parameters.map { $0.description }.joined(separator: ", ")
     let throwsStr = javaConstructor.throwsCheckedException ? "throws" : ""
     let accessModifier = javaConstructor.isPublic ? "public " : ""
@@ -817,7 +820,25 @@ extension JavaClassTranslator {
       javaConstructor: javaConstructor
     )
 
+    if translationErrors.hasErrors && !renderFailureAsBestEffortUnavailableDecl {
+      throw TranslationError.untranslatedJavaClass("constructor has untranslatable parameters")
+    }
+
+    let failedImportPrefix = translationErrors.hasErrors
+      ? "\(translationErrors.doccCommentsText)\n\(translationErrors.unavailableAttributeText)\n"
+      : ""
+
     // FIXME: handle generics in constructors
+    if translationErrors.hasErrors {
+      // Don't emit @JavaMethod for unavailable constructors — the macro expansion
+      // would try to use the placeholder type as a JavaValue, which it isn't.
+      return """
+        \(raw: failedImportPrefix)\(raw: availableAttributes.render())\(raw: nonoverrideAttribute)\(raw: accessModifier)\(raw: convenienceModifier)init(\(raw: parametersStr))\(raw: throwsStr) {
+          fatalError("swift-java: unavailable")
+        }
+        """
+    }
+
     return """
       \(raw: availableAttributes.render())@JavaMethod
       \(raw: nonoverrideAttribute)\(raw: accessModifier)\(raw: convenienceModifier)init(\(raw: parametersStr))\(raw: throwsStr)
@@ -889,8 +910,11 @@ extension JavaClassTranslator {
     _ javaMethod: Method,
     implementedInSwift: Bool,
     genericParameters: [String] = [],
-    whereClause: String = ""
+    whereClause: String = "",
+    renderFailureAsBestEffortUnavailableDecl: Bool = false
   ) throws -> DeclSyntax {
+    var translationErrors = TranslationErrorCollector()
+
     // Map the generic params on the method.
     let allGenericParameters = collectMethodGenericParameters(genericParameters: genericParameters, method: javaMethod)
     let genericParameterClauseStr =
@@ -901,16 +925,27 @@ extension JavaClassTranslator {
       }
 
     // Map the parameters.
-    let parameters = try translateJavaParameters(javaMethod)
+    let parameters = try translateJavaParameters(javaMethod, translationErrors: &translationErrors)
     let parametersStr = parameters.map { $0.description }.joined(separator: ", ")
 
     // Map the result type.
     let resultTypeStr: String
-    let resultType = try translator.getSwiftReturnTypeNameAsString(
-      method: javaMethod,
-      preferValueTypes: true,
-      outerOptional: .implicitlyUnwrappedOptional
-    )
+    let resultType: String
+    do {
+      resultType = try translator.getSwiftReturnTypeNameAsString(
+        method: javaMethod,
+        preferValueTypes: true,
+        outerOptional: .implicitlyUnwrappedOptional
+      )
+    } catch {
+      translationErrors.record("return type: \(error)")
+      resultType = "SwiftJavaFailedImportPlaceholder"
+    }
+
+    if translationErrors.hasErrors && !renderFailureAsBestEffortUnavailableDecl {
+      throw TranslationError.untranslatedJavaClass("method '\(javaMethod.getName())' has untranslatable types")
+    }
+
     let hasTypeEraseGenericResultType: Bool =
       isTypeErased(javaMethod.getGenericReturnType())
 
@@ -991,9 +1026,18 @@ extension JavaClassTranslator {
       ? "override "
       : ""
 
+    let failedImportPrefix = translationErrors.hasErrors
+      ? "\(translationErrors.doccCommentsText)\n"
+      : ""
+    let failedImportUnavailable = translationErrors.hasErrors
+      ? "\(translationErrors.unavailableAttributeText)\n"
+      : ""
+
+    // When the method is unavailable, do NOT emit the Optional convenience overload
     // FIXME: refactor this so we don't have to duplicate the method signatures
-    if resultType.optionalWrappedType() != nil
-      || parameters.contains(where: { $0.type.trimmedDescription.optionalWrappedType() != nil })
+    if !translationErrors.hasErrors
+      && (resultType.optionalWrappedType() != nil
+        || parameters.contains(where: { $0.type.trimmedDescription.optionalWrappedType() != nil }))
     {
       let parameters = parameters.map { param -> (clause: FunctionParameterSyntax, passedArg: String) in
         let name = param.secondName!.trimmedDescription
@@ -1025,22 +1069,48 @@ extension JavaClassTranslator {
         }
         """
     } else {
+      if translationErrors.hasErrors {
+        // Don't emit @JavaMethod for unavailable methods — the macro expansion
+        // would try to use the placeholder type as a JavaValue, which it isn't.
+        return
+          """
+          \(raw: failedImportPrefix)\(raw: docsString)
+          \(raw: failedImportUnavailable)\(raw: availableAttributes.render())\(raw: accessModifier)\(raw: overrideOpt)func \(raw: swiftMethodName)\(raw: genericParameterClauseStr)(\(raw: parametersStr))\(raw: throwsStr)\(raw: resultTypeStr)\(raw: whereClause) {
+            fatalError("swift-java: unavailable")
+          }
+          """
+      }
       return
         """
-        \(raw: docsString)
-        \(raw: availableAttributes.render())\(methodAttribute)\(raw: accessModifier)\(raw: overrideOpt)func \(raw: swiftMethodName)\(raw: genericParameterClauseStr)(\(raw: parametersStr))\(raw: throwsStr)\(raw: resultTypeStr)\(raw: whereClause)
+        \(raw: failedImportPrefix)\(raw: docsString)
+        \(raw: failedImportUnavailable)\(raw: availableAttributes.render())\(methodAttribute)\(raw: accessModifier)\(raw: overrideOpt)func \(raw: swiftMethodName)\(raw: genericParameterClauseStr)(\(raw: parametersStr))\(raw: throwsStr)\(raw: resultTypeStr)\(raw: whereClause)
         """
     }
   }
 
   /// Render a single Java field into the corresponding Swift property, or
   /// throw an error if that is not possible for any reason.
-  package func renderField(_ javaField: Field) throws -> DeclSyntax {
-    let typeName = try translator.getSwiftTypeNameAsString(
-      javaField.getGenericType()!,
-      preferValueTypes: true,
-      outerOptional: .implicitlyUnwrappedOptional
-    )
+  package func renderField(
+    _ javaField: Field,
+    renderFailureAsBestEffortUnavailableDecl: Bool = false
+  ) throws -> DeclSyntax {
+    var translationErrors = TranslationErrorCollector()
+    let typeName: String
+    do {
+      typeName = try translator.getSwiftTypeNameAsString(
+        javaField.getGenericType()!,
+        preferValueTypes: true,
+        outerOptional: .implicitlyUnwrappedOptional
+      )
+    } catch {
+      translationErrors.record("field type: \(error)")
+      typeName = "SwiftJavaFailedImportPlaceholder"
+    }
+
+    if translationErrors.hasErrors && !renderFailureAsBestEffortUnavailableDecl {
+      throw TranslationError.untranslatedJavaClass("field '\(javaField.getName())' has untranslatable type")
+    }
+
     let fieldAttribute: AttributeSyntax = javaField.isStatic ? "@JavaStaticField" : "@JavaField"
     let swiftFieldName = javaField.getName().escapedSwiftName
     let fieldAnnotations = javaField.getDeclaredAnnotations().compactMap(\.self)
@@ -1052,7 +1122,12 @@ extension JavaClassTranslator {
       javaFieldName: javaField.getName()
     )
 
-    if let optionalType = typeName.optionalWrappedType() {
+    let failedImportPrefix = translationErrors.hasErrors
+      ? "\(translationErrors.doccCommentsText)\n\(translationErrors.unavailableAttributeText)\n"
+      : ""
+
+    // When unavailable, do NOT emit the Optional convenience property
+    if !translationErrors.hasErrors, let optionalType = typeName.optionalWrappedType() {
       let setter =
         if !javaField.isFinal {
           """
@@ -1076,6 +1151,16 @@ extension JavaClassTranslator {
         }
         """
     } else {
+      if translationErrors.hasErrors {
+        // Don't emit @JavaField/@JavaStaticField for unavailable fields — the macro
+        // expansion would try to use the placeholder type as a JavaValue, which it isn't.
+        return """
+          \(raw: failedImportPrefix)\(raw: availableAttributes.render())public var \(raw: swiftFieldName): \(raw: typeName) {
+            get { fatalError("swift-java: unavailable") }
+            set { fatalError("swift-java: unavailable") }
+          }
+          """
+      }
       return """
         \(raw: availableAttributes.render())\(fieldAttribute)(isFinal: \(raw: javaField.isFinal))
         public var \(raw: swiftFieldName): \(raw: typeName)
@@ -1141,19 +1226,26 @@ extension JavaClassTranslator {
 
   // Translate a Java parameter list into Swift parameters.
   private func translateJavaParameters(
-    _ javaMethod: JavaLangReflect.Method
+    _ javaMethod: JavaLangReflect.Method,
+    translationErrors: inout TranslationErrorCollector
   ) throws -> [FunctionParameterSyntax] {
     let parameters: [Parameter?] = javaMethod.getParameters()
 
     return try parameters.compactMap { javaParameter in
       guard let javaParameter else { return nil }
 
-      let typeName = try translator.getSwiftTypeNameAsString(
-        method: javaMethod,
-        javaParameter.getParameterizedType()!,
-        preferValueTypes: true,
-        outerOptional: .optional
-      )
+      let typeName: String
+      do {
+        typeName = try translator.getSwiftTypeNameAsString(
+          method: javaMethod,
+          javaParameter.getParameterizedType()!,
+          preferValueTypes: true,
+          outerOptional: .optional
+        )
+      } catch {
+        translationErrors.record("parameter '\(javaParameter.getName())': \(error)")
+        typeName = "SwiftJavaFailedImportPlaceholder"
+      }
       let paramName = javaParameter.getName()
       return "_ \(raw: paramName): \(raw: typeName)"
     }
@@ -1162,19 +1254,58 @@ extension JavaClassTranslator {
   // Translate a Java parameter list into Swift parameters.
   @available(*, deprecated, message: "Prefer the method based version") // FIXME: constructors are not well handled
   private func translateJavaParameters(
-    _ parameters: [Parameter?]
+    _ parameters: [Parameter?],
+    translationErrors: inout TranslationErrorCollector
   ) throws -> [FunctionParameterSyntax] {
     try parameters.compactMap { javaParameter in
       guard let javaParameter else { return nil }
 
-      let typeName = try translator.getSwiftTypeNameAsString(
-        javaParameter.getParameterizedType()!,
-        preferValueTypes: true,
-        outerOptional: .optional
-      )
+      let typeName: String
+      do {
+        typeName = try translator.getSwiftTypeNameAsString(
+          javaParameter.getParameterizedType()!,
+          preferValueTypes: true,
+          outerOptional: .optional
+        )
+      } catch {
+        translationErrors.record("parameter '\(javaParameter.getName())': \(error)")
+        typeName = "SwiftJavaFailedImportPlaceholder"
+      }
       let paramName = javaParameter.getName()
       return "_ \(raw: paramName): \(raw: typeName)"
     }
+  }
+}
+
+/// Collects translation errors during parameter/return-type translation.
+/// Used to emit `@available(*, unavailable)` declarations with doc comments
+/// explaining why a Java method could not be fully imported.
+package struct TranslationErrorCollector {
+  private var errors: [String] = []
+
+  var hasErrors: Bool { !errors.isEmpty }
+
+  mutating func record(_ errorMessage: String) {
+    errors.append(errorMessage)
+  }
+
+  /// Renders doc comment lines listing the import errors.
+  var doccCommentsText: String {
+    guard !errors.isEmpty else { return "" }
+    return """
+      ///
+      /// ### Swift-Java import errors
+      ///
+      /// \(errors.map { "* \($0)" }.joined(separator: "\n  /// "))
+      """
+  }
+
+  /// Renders `@available(*, unavailable, ...)` attribute if there are errors.
+  var unavailableAttributeText: String {
+    guard !errors.isEmpty else { return "" }
+    return """
+      @available(*, unavailable, message: "swift-java was unable to import this declaration. See doc comments for details.")
+      """
   }
 }
 
