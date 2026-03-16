@@ -278,6 +278,13 @@ Java native methods that throw any checked exception should be marked as `throws
 
 The Swift implementations of Java `native` constructors and static methods require an additional Swift parameter `environment: JNIEnvironment? = nil`, which will receive the JNI environment in which the function is being executed. In case of nil, the `JavaVirtualMachine.shared().environment()` value will be used.
 
+> **Important:** The `@JavaImplementation` macro generates `@_cdecl` symbols
+> based on the **Swift method name only** — the Java class name is not part of
+> the symbol. If two `@JavaImplementation` extensions in the same module have
+> methods with the same Swift name and signature, they will collide at compile
+> time. To avoid this, give each method a unique Swift name and use
+> `@JavaMethod("nativeName")` to map it to the correct Java native method.
+
 ## SwiftJava: Using Java libraries from Swift
 
 This section describes how Java libraries and mapped into Swift and their use from Swift.

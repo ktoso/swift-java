@@ -181,6 +181,51 @@ public macro JavaStaticMethod(_ javaMethodName: String? = nil) =
 ///   }
 /// }
 /// ```
+///
+/// ## Avoiding symbol collisions across `@JavaImplementation` extensions
+///
+/// The `@JavaImplementation` macro generates `@_cdecl` exported symbols for each
+/// `@JavaMethod` in the extension. These symbols are mangled based on the **Swift
+/// method name only** — they do **not** incorporate the Java class name or the
+/// Swift type name of the extension.
+///
+/// This means that if two different `@JavaImplementation` extensions in the same
+/// module contain methods with the **same Swift name and signature**, their
+/// generated symbols will collide, producing an "invalid redeclaration" error.
+///
+/// For example, the following will fail to compile:
+///
+/// ```swift
+/// @JavaImplementation("com.example.Foo")
+/// extension FooJava {
+///   @JavaMethod("$size")
+///   func _size(...) -> Int32 { ... }
+/// }
+///
+/// @JavaImplementation("com.example.Bar")
+/// extension BarJava {
+///   @JavaMethod("$size")
+///   func _size(...) -> Int32 { ... }  // ERROR: invalid redeclaration
+/// }
+/// ```
+///
+/// **Workaround:** Give each method a unique Swift name, and use the
+/// `@JavaMethod("nativeName")` parameter to map it to the correct Java native
+/// method name:
+///
+/// ```swift
+/// @JavaImplementation("com.example.Foo")
+/// extension FooJava {
+///   @JavaMethod("$size")
+///   func _fooSize(...) -> Int32 { ... }
+/// }
+///
+/// @JavaImplementation("com.example.Bar")
+/// extension BarJava {
+///   @JavaMethod("$size")
+///   func _barSize(...) -> Int32 { ... }  // OK: different Swift name
+/// }
+/// ```
 @attached(peer)
 public macro JavaImplementation(_ fullClassName: String) =
   #externalMacro(module: "SwiftJavaMacros", type: "JavaImplementationMacro")
