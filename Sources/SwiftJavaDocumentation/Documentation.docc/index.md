@@ -34,7 +34,9 @@ which is a quick overview of all the features and approaches offered by SwiftJav
 
 ### Supported Features
 
-- <doc:SupportedFeatures>
+- <doc:FeaturesOverview>
+- <doc:FeaturesJextract>
+- <doc:FeaturesWrapJava>
 
 
 ### Source Generation

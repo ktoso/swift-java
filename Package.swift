@@ -11,6 +11,15 @@ if let localPath = Context.environment["SWIFT_JAVA_JNI_CORE_PATH"] {
   swiftJavaJNICoreDep = .package(url: "https://github.com/swiftlang/swift-java-jni-core", branch: "main")
 }
 
+let doccPluginDep: [Package.Dependency]
+if let localPath = Context.environment["DOCC_PLUGIN_PATH"] {
+  doccPluginDep = [.package(path: localPath)]
+} else if Context.environment["DOCC_PLUGIN"] != nil {
+  doccPluginDep = [.package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3")]
+} else {
+  doccPluginDep = []
+}
+
 let package = Package(
   name: "swift-java",
   platforms: [
@@ -127,7 +136,7 @@ let package = Package(
 
     // Benchmarking
     .package(url: "https://github.com/ordo-one/package-benchmark", .upToNextMajor(from: "1.4.0")),
-  ],
+  ] + doccPluginDep,
   targets: [
     .target(
       name: "SwiftJavaDocumentation",
