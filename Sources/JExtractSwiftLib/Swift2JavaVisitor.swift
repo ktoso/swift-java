@@ -198,6 +198,20 @@ final class Swift2JavaVisitor {
 
     log.debug("Record imported method \(node.qualifiedNameForDebug)")
     if let typeContext {
+      // Skip if a method with the same name, kind, parameter labels, and
+      // parameter types already exists (e.g. protocol requirement + extension
+      // default implementation). Argument labels must match too so that
+      // overloads like `bar(a: String)` vs `bar(b: String)` are not collapsed.
+      let isDuplicate = typeContext.methods.contains {
+        $0.name == imported.name
+          && $0.apiKind == imported.apiKind
+          && $0.functionSignature.parameters.map(\.argumentLabel) == imported.functionSignature.parameters.map(\.argumentLabel)
+          && $0.functionSignature.parameters.map(\.type) == imported.functionSignature.parameters.map(\.type)
+      }
+      if isDuplicate {
+        log.debug("Skip duplicate method: '\(node.qualifiedNameForDebug)'")
+        return
+      }
       typeContext.methods.append(imported)
     } else {
       translator.importedGlobalFuncs.append(imported)
@@ -438,6 +452,14 @@ final class Swift2JavaVisitor {
       "Record imported variable accessor \(kind == .getter || kind == .subscriptGetter ? "getter" : "setter"):\(node.qualifiedNameForDebug)"
     )
     if let typeContext {
+      // Skip if an accessor with the same name and kind already exists
+      let isDuplicate = typeContext.variables.contains {
+        $0.name == imported.name && $0.apiKind == imported.apiKind
+      }
+      if isDuplicate {
+        log.debug("Skip duplicate variable accessor: '\(node.qualifiedNameForDebug)'")
+        return
+      }
       typeContext.variables.append(imported)
     } else {
       translator.importedGlobalVariables.append(imported)

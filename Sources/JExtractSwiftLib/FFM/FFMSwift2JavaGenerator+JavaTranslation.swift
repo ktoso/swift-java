@@ -825,7 +825,7 @@ extension FFMSwift2JavaGenerator {
           throw JavaTranslationError.unhandledType(swiftType)
         }
 
-        let javaType: JavaType = .class(package: nil, name: swiftNominalType.nominalTypeDecl.flatName)
+        let javaType: JavaType = .class(package: nil, name: swiftNominalType.nominalTypeDecl.qualifiedName)
         return TranslatedResult(
           javaResultType: javaType,
           annotations: resultAnnotations,
@@ -902,7 +902,7 @@ extension FFMSwift2JavaGenerator {
           throw JavaTranslationError.unhandledType(type)
         }
 
-        let javaType: JavaType = .class(package: nil, name: nominalType.nominalTypeDecl.flatName)
+        let javaType: JavaType = .class(package: nil, name: nominalType.nominalTypeDecl.qualifiedName)
         return (javaType, .wrapMemoryAddressUnsafe(.placeholder, javaType))
 
       default:
