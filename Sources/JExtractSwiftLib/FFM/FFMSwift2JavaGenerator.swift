@@ -36,6 +36,10 @@ package class FFMSwift2JavaGenerator: Swift2JavaGenerator {
 
   var thunkNameRegistry: ThunkNameRegistry = ThunkNameRegistry()
 
+  /// Tracks Java method signatures already emitted for the current type to
+  /// avoid duplicate methods (e.g. protocol requirements + default implementations)
+  var emittedJavaMethodSignatures: Set<String> = []
+
   /// Cached Java translation result. 'nil' indicates failed translation.
   var translatedDecls: [ImportedFunc: TranslatedFunctionDecl?] = [:]
 
@@ -256,6 +260,8 @@ extension FFMSwift2JavaGenerator {
     self.currentSymbolLookup = isErrorType ? .swiftRuntime : .module
 
     printNominal(&printer, decl) { printer in
+      self.emittedJavaMethodSignatures.removeAll()
+
       // We use a static field to abuse the initialization order such that by the time we get type metadata,
       // we already have loaded the library where it will be obtained from.
       if let overrideLoading = self.config.overrideStaticBlockLibraryLoading {

@@ -385,6 +385,13 @@ extension FFMSwift2JavaGenerator {
       paramDecls.append("AllocatingSwiftArena swiftArena")
     }
 
+    // Deduplicate Java methods with identical signatures (e.g. protocol
+    // requirements vs default extension implementations)
+    let javaSignatureKey = "\(modifiers) \(returnTy) \(methodName)(\(paramDecls.joined(separator: ", ")))"
+    guard emittedJavaMethodSignatures.insert(javaSignatureKey).inserted else {
+      return
+    }
+
     var throwsClauses: [String] = []
     // If a Swift function is 'throws' we throw a checked error for the Java side
     // TODO: When we support typed throws on Swift side we'll want to throw the right type here instead
