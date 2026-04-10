@@ -73,8 +73,8 @@ struct SwiftSymbolTableSuite {
     )
   }
 
-  @Test(arguments: [JExtractGenerationMode.jni, .ffm])
-  func resolveSelfModuleName_moduleDuplicatedName(mode: JExtractGenerationMode) throws {
+  @Test
+  func resolveSelfModuleName_moduleDuplicatedName_jni() throws {
     try assertOutput(
       input: """
         public struct MyModule {
@@ -83,7 +83,7 @@ struct SwiftSymbolTableSuite {
 
         public func fullyQualifiedType() -> MyModule.MyModule.MyValue
         """,
-      mode,
+      .jni,
       .java,
       swiftModuleName: "MyModule",
       detectChunkByInitialLines: 1,

@@ -327,4 +327,32 @@ struct JNIModuleTests {
       ]
     )
   }
+
+  @Test
+  func generatesModuleJavaClass_overrideStaticBlockLibraryLoading_nativeHelper() throws {
+    let input = "public func helloWorld()"
+    var config = Configuration()
+    config.overrideStaticBlockLibraryLoading = [
+      "com.example.NativeHelper.loadSharedLib(\"SwiftJava\");",
+      "com.example.NativeHelper.loadSharedLib(LIB_NAME);",
+    ]
+
+    try assertOutput(
+      input: input,
+      config: config,
+      .jni,
+      .java,
+      expectedChunks: [
+        """
+        static {
+            com.example.NativeHelper.loadSharedLib("SwiftJava");
+            com.example.NativeHelper.loadSharedLib(LIB_NAME);
+        }
+        """
+      ],
+      notExpectedChunks: [
+        "System.loadLibrary"
+      ]
+    )
+  }
 }

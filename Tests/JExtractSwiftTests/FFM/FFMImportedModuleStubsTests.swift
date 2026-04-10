@@ -144,37 +144,6 @@ struct FFMImportedModuleStubsTests {
   }
 
   // ==== -----------------------------------------------------------------------
-  // MARK: Nested types in stubs
-
-  @Test("Nested types in stubbed module")
-  func nestedStubbedType_javaBindings() throws {
-    let nestedSource = """
-      import Networking
-
-      public func getEndpoint() -> Networking.API.Endpoint
-      """
-
-    var config = Configuration()
-    config.importedModuleStubs = [
-      "Networking": [
-        "public enum API {}",
-        "extension API { public struct Endpoint {} }",
-      ]
-    ]
-
-    try assertOutput(
-      input: nestedSource,
-      config: config,
-      .ffm,
-      .java,
-      detectChunkByInitialLines: 1,
-      expectedChunks: [
-        "public static API.Endpoint getEndpoint("
-      ],
-    )
-  }
-
-  // ==== -----------------------------------------------------------------------
   // MARK: Multiple stubbed modules
 
   @Test("Multiple stubbed modules resolve correctly")

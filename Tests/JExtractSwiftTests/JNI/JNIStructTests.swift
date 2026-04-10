@@ -230,4 +230,34 @@ struct JNIStructTests {
       ]
     )
   }
+
+  @Test
+  func generatesStructJavaClass_overrideStaticBlockLibraryLoading_nativeHelper() throws {
+    var config = Configuration()
+    config.overrideStaticBlockLibraryLoading = [
+      "com.example.NativeHelper.loadSharedLib(\"SwiftJava\");",
+      "com.example.NativeHelper.loadSharedLib(LIB_NAME);",
+    ]
+
+    try assertOutput(
+      input: source,
+      config: config,
+      .jni,
+      .java,
+      expectedChunks: [
+        """
+        @SuppressWarnings("unused")
+        private static final boolean INITIALIZED_LIBS = initializeLibs();
+        static boolean initializeLibs() {
+            com.example.NativeHelper.loadSharedLib("SwiftJava");
+            com.example.NativeHelper.loadSharedLib(LIB_NAME);
+            return true;
+        }
+        """
+      ],
+      notExpectedChunks: [
+        "System.loadLibrary"
+      ]
+    )
+  }
 }

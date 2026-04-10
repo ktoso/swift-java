@@ -14,6 +14,7 @@
 
 pluginManagement {
     includeBuild("BuildLogic")
+    includeBuild("SwiftJavaPlugin")
 }
 
 rootProject.name = "swift-java"
