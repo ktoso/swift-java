@@ -28,12 +28,12 @@ extension FFMSwift2JavaGenerator {
       return // no need to write any empty files, yay
     }
 
-    log.info(
+    log.debug(
       "[swift-java] Write empty [\(self.expectedOutputSwiftFileNames.count)] 'expected' files in: \(swiftOutputDirectory)/"
     )
 
     for expectedFileName in self.expectedOutputSwiftFileNames {
-      log.info("Write SwiftPM-'expected' empty file: \(expectedFileName.bold)")
+      log.debug("Write SwiftPM-'expected' empty file: \(expectedFileName.bold)")
 
       var printer = CodePrinter()
       printer.print("// Empty file generated on purpose")

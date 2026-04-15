@@ -35,12 +35,12 @@ extension JNISwift2JavaGenerator {
       return // no need to write any empty files, yay
     }
 
-    logger.info(
+    logger.debug(
       "Write empty [\(self.expectedOutputSwiftFileNames.count)] 'expected' files in: \(swiftOutputDirectory)/"
     )
 
     for expectedFileName in self.expectedOutputSwiftFileNames {
-      logger.info("Write SwiftPM-'expected' empty file: \(expectedFileName.bold)")
+      logger.debug("Write SwiftPM-'expected' empty file: \(expectedFileName.bold)")
 
       var printer = CodePrinter()
       printer.print("// Empty file generated on purpose")
@@ -88,7 +88,7 @@ extension JNISwift2JavaGenerator {
         grouping: filteredTypes,
         by: { $0.value.sourceFilePath },
       ) {
-        logger.warning("Writing types in file group: \(group.key): \(group.value.map(\.key))")
+        logger.debug("Writing types in file group: \(group.key): \(group.value.map(\.key))")
 
         let importedTypesForThisFile = group.value
           .map(\.value)
@@ -111,7 +111,7 @@ extension JNISwift2JavaGenerator {
 
         }
 
-        logger.warning("Write Swift thunks file: \(filename.bold)")
+        logger.debug("Write Swift thunks file: \(filename.bold)")
         do {
           if let outputFile = try printer.writeContents(
             outputDirectory: self.swiftOutputDirectory,
