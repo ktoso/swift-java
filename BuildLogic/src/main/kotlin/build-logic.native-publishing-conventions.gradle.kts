@@ -105,8 +105,54 @@ mavenPublishing {
 }
 
 // Tag every jar (and the sources/javadoc empties) with the platform classifier.
+// Also stamp full netty-parity MANIFEST entries so the jars carry both standard
+// JAR metadata (Implementation-*) and OSGi metadata (Bundle-NativeCode) for
+// runtimes that can act on it. Per-subproject manifest entries
+// (Automatic-Module-Name, Fragment-Host) are configured in the subproject build
+// scripts since they are artifact-specific.
 tasks.withType<Jar>().configureEach {
     archiveClassifier.set(nativeClassifier)
+    manifest {
+        attributes(
+            "Implementation-Title" to project.name,
+            "Implementation-Version" to project.version.toString(),
+            "Implementation-Vendor" to "Swift.org project authors",
+            "Specification-Title" to project.name,
+            "Specification-Version" to project.version.toString(),
+            "Specification-Vendor" to "Swift.org project authors",
+            "Bundle-NativeCode" to bundleNativeCodeFor(nativeClassifier),
+        )
+    }
+}
+
+// Convert our Maven classifier (e.g. "osx-aarch_64", "ubuntu22.04-x86_64") into
+// an OSGi Bundle-NativeCode header. OSGi only knows osname+processor, not Linux
+// distro variants, so all linux-* classifiers collapse to osname=Linux. Trailing
+// `,*` is OSGi syntax meaning "match this exactly OR fall back to anything".
+fun bundleNativeCodeFor(classifier: String): String {
+    val osname = when {
+        classifier.startsWith("osx") || classifier.contains("darwin") ||
+            classifier.contains("macos") -> "MacOSX"
+        classifier.contains("windows") -> "Windows"
+        else -> "Linux"
+    }
+    val processor = when {
+        classifier.endsWith("-aarch_64") || classifier.endsWith("-aarch64") ||
+            classifier.endsWith("-arm64") -> "aarch_64"
+        classifier.endsWith("-x86_64") || classifier.endsWith("-amd64") -> "x86_64"
+        else -> "unknown"
+    }
+    val nativeFiles = listOf(
+        "META-INF/native/libSwiftRuntimeFunctions",
+        "META-INF/native/libSwiftJava",
+    ).map {
+        when (osname) {
+            "MacOSX" -> "$it.dylib"
+            "Windows" -> "$it.dll"
+            else -> "$it.so"
+        }
+    }
+    return nativeFiles.joinToString("; ") + "; osname=$osname; processor=$processor,*"
 }
 
 // artifactId comes from base.archivesName (e.g. "swiftkit-core-native").

@@ -148,16 +148,24 @@ public final class SwiftLibraries {
                 System.out.println("[swift-java] Loading resource library: " + resourceName);
             }
 
-            try (InputStream libInputStream = SwiftLibraries.class.getResourceAsStream("/" + resourceName)) {
-                if (libInputStream == null) {
-                    throw new RuntimeException("Expected library '" + key + "' ('" + resourceName + "') was not found as resource!");
-                }
+            // Try META-INF/native/ first (matches the netty / OSGi convention used
+            // by swiftkit-*-native classifier jars), then fall back to the JAR root
+            // for compatibility with consumers that bundle dylibs directly there.
+            InputStream libInputStream = SwiftLibraries.class.getResourceAsStream(
+                "/META-INF/native/" + resourceName);
+            if (libInputStream == null) {
+                libInputStream = SwiftLibraries.class.getResourceAsStream("/" + resourceName);
+            }
+            if (libInputStream == null) {
+                throw new RuntimeException("Expected library '" + key + "' ('" + resourceName + "') was not found as resource (searched /META-INF/native/ and /)!");
+            }
 
+            try (InputStream in = libInputStream) {
                 // TODO: we could do an in memory file system here
                 // Extract to temp file
                 File tempFile = File.createTempFile(key, "");
                 tempFile.deleteOnExit();
-                Files.copy(libInputStream, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(in, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
                 System.load(tempFile.getAbsolutePath());
 

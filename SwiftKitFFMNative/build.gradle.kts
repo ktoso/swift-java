@@ -52,5 +52,24 @@ tasks.processResources.configure {
     from(swiftReleaseDir) {
         include("libSwiftRuntimeFunctions.$nativeLibExtension")
         include("libSwiftJava.$nativeLibExtension")
+        // Match netty / OSGi convention. SwiftLibraries.loadResourceLibrary
+        // checks META-INF/native/ before falling back to the JAR root.
+        into("META-INF/native")
+    }
+}
+
+// Per-artifact MANIFEST entries (the cross-cutting Implementation-* /
+// Bundle-NativeCode entries are set by the convention plugin).
+//
+// Note: "native" is a Java keyword and cannot appear as a JPMS module name
+// segment, so the natives jar uses ".natives" (plural) for its module name.
+// Fragment-Host points at the symbolic name of the Java module this fragment
+// attaches to in OSGi runtimes.
+tasks.withType<Jar>().configureEach {
+    manifest {
+        attributes(
+            "Automatic-Module-Name" to "org.swift.swiftkit.ffm.natives",
+            "Fragment-Host" to "org.swift.swiftkit.ffm",
+        )
     }
 }
