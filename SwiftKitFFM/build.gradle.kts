@@ -14,31 +14,18 @@
 
 plugins {
     id("build-logic.java-application-conventions")
-    `maven-publish`
+    id("build-logic.java-publishing-conventions")
 }
-
-group = "org.swift.swiftkit"
-version = "1.0-SNAPSHOT"
 
 base {
     archivesName = "swiftkit-ffm"
 }
 
+description = "SwiftKit FFM: Java Foreign Function & Memory API bindings to Swift"
+
 repositories {
     mavenLocal()
     mavenCentral()
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            groupId = group as? String
-            artifactId = "swiftkit-ffm"
-            version = "1.0-SNAPSHOT"
-
-            from(components["java"])
-        }
-    }
 }
 
 java {

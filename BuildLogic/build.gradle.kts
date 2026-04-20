@@ -24,4 +24,6 @@ repositories {
 
 dependencies {
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.vanniktech.publish.plugin)
+    implementation(libs.osdetector.plugin)
 }

@@ -133,9 +133,15 @@ info "Package.swift updated."
 # ==== -----------------------------------------------------------------------
 # MARK: Verify build
 
-info "Verifying build..."
+info "Verifying Swift build..."
 if ! xcrun swift build --package-path "$REPO_ROOT" 2>&1; then
   error "Build failed! Please fix the issues before releasing."
+fi
+
+info "Verifying Gradle build..."
+if ! "$REPO_ROOT/gradlew" -p "$REPO_ROOT" \
+    :SwiftKitCore:build :SwiftKitFFM:build -x test 2>&1; then
+  error "Gradle build failed! Please fix the issues before releasing."
 fi
 
 info "Build succeeded."
