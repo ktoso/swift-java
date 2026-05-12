@@ -1,0 +1,309 @@
+name: release-publish
+
+# Publishes signed RELEASE artifacts of the swift-java Java + native libraries
+# to Maven Central via the Sonatype Central Portal.
+#
+# Triggered by pushing a Git tag matching N.N.N (e.g. 0.1.0). The version is
+# derived from the tag by build.gradle.kts.
+#
+# Two artifact families per release:
+#   * Java-only (classifier-less): swiftkit-core, swiftkit-ffm
+#       Published once from a single canonical job (`publish-java`).
+#   * Native classifier jars: swiftkit-core-native, swiftkit-ffm-native
+#       Published from a per-platform matrix; each matrix job uploads only its
+#       own classifier jar.
+#
+# JReleaser uploads to the Central Portal as a deployment in USER_MANAGED state
+# (each matrix job creates its own deployment). A human must finalize each one
+# at https://central.sonatype.com/publishing/deployments — the `finalize-hint`
+# job at the end prints that URL.
+#
+# Required repository secrets:
+#   JRELEASER_MAVENCENTRAL_USERNAME      -- Sonatype Central Portal user-token name
+#   JRELEASER_MAVENCENTRAL_PASSWORD      -- Sonatype Central Portal user-token value
+#   JRELEASER_GPG_PUBLIC_KEY             -- ASCII-armored PGP public key
+#   JRELEASER_GPG_SECRET_KEY             -- ASCII-armored PGP private key
+#   JRELEASER_GPG_PASSPHRASE             -- Passphrase for the PGP key
+#   JRELEASER_GITHUB_TOKEN               -- GitHub token for JReleaser (we don't
+#                                           cut releases — any valid token works)
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (tag) to publish from"
+        required: true
+
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+env:
+  JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
+  JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
+  JRELEASER_GPG_PUBLIC_KEY:        ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
+  JRELEASER_GPG_SECRET_KEY:        ${{ secrets.JRELEASER_GPG_SECRET_KEY }}
+  JRELEASER_GPG_PASSPHRASE:        ${{ secrets.JRELEASER_GPG_PASSPHRASE }}
+  JRELEASER_GITHUB_TOKEN:          ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  # ==== --------------------------------------------------------------------
+  # Java-only artifacts (swiftkit-core, swiftkit-ffm)
+  # ==== --------------------------------------------------------------------
+  publish-java:
+    name: Publish Java jars (release)
+    runs-on: ubuntu-latest
+    container:
+      image: swift:6.3-noble
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: |
+            25
+            17
+          cache: gradle
+
+      - name: Set JAVA_HOME_25
+        shell: bash
+        run: |
+          if [[ -n "$JAVA_HOME_25_X64" ]]; then
+            echo "JAVA_HOME_25=$JAVA_HOME_25_X64" >> $GITHUB_ENV
+          elif [[ -n "$JAVA_HOME_25_ARM64" ]]; then
+            echo "JAVA_HOME_25=$JAVA_HOME_25_ARM64" >> $GITHUB_ENV
+          fi
+
+      - name: Verify version is a release (no -SNAPSHOT) and matches the tag
+        shell: bash
+        run: |
+          VERSION="$(./gradlew -q printVersion)"
+          echo "Computed version: $VERSION"
+          if [[ "$VERSION" == *-SNAPSHOT ]]; then
+            echo "::error::Release workflow requires a non-SNAPSHOT version, got: $VERSION"
+            echo "::error::HEAD must be exactly at a release tag (N.N.N) for the release workflow."
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            REF="${GITHUB_REF#refs/tags/}"
+            if [[ "$REF" != "$VERSION" ]]; then
+              echo "::error::Tag '$REF' does not match computed version '$VERSION'."
+              exit 1
+            fi
+          fi
+
+      - name: Verify required secrets are present
+        shell: bash
+        run: |
+          missing=()
+          [[ -z "$JRELEASER_MAVENCENTRAL_USERNAME" ]] && missing+=("JRELEASER_MAVENCENTRAL_USERNAME")
+          [[ -z "$JRELEASER_MAVENCENTRAL_PASSWORD" ]] && missing+=("JRELEASER_MAVENCENTRAL_PASSWORD")
+          [[ -z "$JRELEASER_GPG_PUBLIC_KEY" ]] && missing+=("JRELEASER_GPG_PUBLIC_KEY")
+          [[ -z "$JRELEASER_GPG_SECRET_KEY" ]] && missing+=("JRELEASER_GPG_SECRET_KEY")
+          [[ -z "$JRELEASER_GPG_PASSPHRASE" ]] && missing+=("JRELEASER_GPG_PASSPHRASE")
+          if [[ ${#missing[@]} -ne 0 ]]; then
+            echo "::error::Missing required repository secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Stage Java jars to local directory
+        run: |
+          ./gradlew \
+            :SwiftKitCore:publish \
+            :SwiftKitFFM:publish \
+            --no-daemon --stacktrace
+
+      - name: Deploy with JReleaser
+        run: ./gradlew jreleaserDeploy --no-daemon --stacktrace
+
+      - name: Upload JReleaser logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jreleaser-logs-publish-java
+          path: |
+            build/jreleaser/trace.log
+            build/jreleaser/output.properties
+
+  # ==== --------------------------------------------------------------------
+  # Native Linux classifier jars (one per matrix entry)
+  # ==== --------------------------------------------------------------------
+  publish-natives-linux:
+    name: Publish natives (${{ matrix.classifier }}) release
+    needs: publish-java
+    runs-on: ${{ matrix.runs_on }}
+    container:
+      image: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - classifier: ubuntu22.04-x86_64
+            runs_on: ubuntu-latest
+            container: swift:6.3-jammy
+          - classifier: ubuntu22.04-aarch_64
+            runs_on: ubuntu-24.04-arm
+            container: swift:6.3-jammy
+          - classifier: ubuntu24.04-x86_64
+            runs_on: ubuntu-latest
+            container: swift:6.3-noble
+          - classifier: ubuntu24.04-aarch_64
+            runs_on: ubuntu-24.04-arm
+            container: swift:6.3-noble
+          - classifier: amazonlinux2-x86_64
+            runs_on: ubuntu-latest
+            container: swift:6.3-amazonlinux2
+          - classifier: amazonlinux2-aarch_64
+            runs_on: ubuntu-24.04-arm
+            container: swift:6.3-amazonlinux2
+          - classifier: linux-x86_64
+            runs_on: ubuntu-latest
+            container: swift:6.3-jammy
+            swift_sdk: x86_64-swift-linux-musl
+          - classifier: linux-aarch_64
+            runs_on: ubuntu-24.04-arm
+            container: swift:6.3-jammy
+            swift_sdk: aarch64-swift-linux-musl
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: |
+            25
+            17
+          cache: gradle
+
+      - name: Set JAVA_HOME_25
+        shell: bash
+        run: |
+          if [[ -n "$JAVA_HOME_25_X64" ]]; then
+            echo "JAVA_HOME_25=$JAVA_HOME_25_X64" >> $GITHUB_ENV
+          elif [[ -n "$JAVA_HOME_25_ARM64" ]]; then
+            echo "JAVA_HOME_25=$JAVA_HOME_25_ARM64" >> $GITHUB_ENV
+          fi
+
+      - name: Install Swift static-linux SDK
+        if: matrix.swift_sdk
+        shell: bash
+        run: |
+          # TODO: bump SWIFT_STATIC_SDK_URL when upgrading the Swift toolchain.
+          SWIFT_STATIC_SDK_URL="https://download.swift.org/swift-6.3-RELEASE/static-sdk/swift-6.3-RELEASE_static-linux-0.0.1/swift-6.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz"
+          swift sdk install "$SWIFT_STATIC_SDK_URL"
+
+      - name: Stage ${{ matrix.classifier }} native jars
+        shell: bash
+        run: |
+          GRADLE_ARGS=(-PnativeClassifier=${{ matrix.classifier }})
+          if [[ -n "${{ matrix.swift_sdk }}" ]]; then
+            GRADLE_ARGS+=(-PnativeBuildSdk=${{ matrix.swift_sdk }})
+          fi
+          ./gradlew "${GRADLE_ARGS[@]}" \
+            :SwiftKitCoreNative:publish \
+            :SwiftKitFFMNative:publish \
+            --no-daemon --stacktrace
+
+      - name: Deploy with JReleaser
+        run: ./gradlew jreleaserDeploy --no-daemon --stacktrace
+
+      - name: Upload JReleaser logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jreleaser-logs-natives-${{ matrix.classifier }}
+          path: |
+            build/jreleaser/trace.log
+            build/jreleaser/output.properties
+
+  # ==== --------------------------------------------------------------------
+  # Native macOS arm64 classifier jar
+  # ==== --------------------------------------------------------------------
+  publish-natives-macos:
+    name: Publish natives (osx-aarch_64) release
+    needs: publish-java
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Install Swift via Swiftly
+        run: ./.github/scripts/install_swiftly.sh
+        env:
+          SWIFT_VERSION: "6.3"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: |
+            25
+            17
+          cache: gradle
+
+      - name: Set JAVA_HOME_25
+        shell: bash
+        run: |
+          if [[ -n "$JAVA_HOME_25_X64" ]]; then
+            echo "JAVA_HOME_25=$JAVA_HOME_25_X64" >> $GITHUB_ENV
+          elif [[ -n "$JAVA_HOME_25_ARM64" ]]; then
+            echo "JAVA_HOME_25=$JAVA_HOME_25_ARM64" >> $GITHUB_ENV
+          fi
+
+      - name: Stage osx-aarch_64 native jars
+        shell: bash
+        run: |
+          ./gradlew -PnativeClassifier=osx-aarch_64 \
+            :SwiftKitCoreNative:publish \
+            :SwiftKitFFMNative:publish \
+            --no-daemon --stacktrace
+
+      - name: Deploy with JReleaser
+        run: ./gradlew jreleaserDeploy --no-daemon --stacktrace
+
+      - name: Upload JReleaser logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jreleaser-logs-natives-osx-aarch_64
+          path: |
+            build/jreleaser/trace.log
+            build/jreleaser/output.properties
+
+  # ==== --------------------------------------------------------------------
+  # Final reminder: humans need to finalize each deployment in the Portal UI
+  # ==== --------------------------------------------------------------------
+  finalize-hint:
+    name: Finalization reminder
+    needs: [publish-natives-linux, publish-natives-macos]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print finalization URL
+        shell: bash
+        run: |
+          echo "All publish jobs are done."
+          echo
+          echo "Each matrix entry created its own staged deployment in the"
+          echo "Sonatype Central Portal. Review and click 'Publish' on each at:"
+          echo
+          echo "  https://central.sonatype.com/publishing/deployments"
+          echo
+          echo "Until clicked, nothing is visible on Maven Central."
