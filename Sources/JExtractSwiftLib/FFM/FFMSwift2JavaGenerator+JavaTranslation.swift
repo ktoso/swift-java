@@ -463,6 +463,25 @@ extension FFMSwift2JavaGenerator {
                 ])
             )
 
+          case .array(let element)
+          where element == knownTypes.int16 || element == knownTypes.int32 || element == knownTypes.int64:
+            let info = primitiveIntArrayInfo(for: element)!
+            return TranslatedParameter(
+              javaParameters: [
+                JavaParameter(name: parameterName, type: .array(info.javaElement), annotations: parameterAnnotations)
+              ],
+              conversion:
+                .commaSeparated([
+                  .call(
+                    .commaSeparated([.constant("ValueLayout.\(info.valueLayoutName)"), .placeholder]),
+                    base: .temporaryArena,
+                    function: "allocateFrom",
+                    withArena: false
+                  ),
+                  .property(.placeholder, propertyName: "length"),
+                ])
+            )
+
           case .foundationData, .essentialsData:
             break
 
@@ -546,6 +565,27 @@ extension FFMSwift2JavaGenerator {
       case .composite:
         throw JavaTranslationError.unhandledType(swiftType)
       }
+    }
+
+    /// Per-element-type info for lowering [Int16] / [Int32] / [Int64] arrays through FFM.
+    struct PrimitiveIntArrayInfo {
+      let javaElement: JavaType
+      let javaElementName: String
+      let valueLayoutName: String
+      let bits: Int
+    }
+
+    func primitiveIntArrayInfo(for element: SwiftType) -> PrimitiveIntArrayInfo? {
+      if element == knownTypes.int16 {
+        return PrimitiveIntArrayInfo(javaElement: .short, javaElementName: "short", valueLayoutName: "JAVA_SHORT", bits: 16)
+      }
+      if element == knownTypes.int32 {
+        return PrimitiveIntArrayInfo(javaElement: .int, javaElementName: "int", valueLayoutName: "JAVA_INT", bits: 32)
+      }
+      if element == knownTypes.int64 {
+        return PrimitiveIntArrayInfo(javaElement: .long, javaElementName: "long", valueLayoutName: "JAVA_LONG", bits: 64)
+      }
+      return nil
     }
 
     /// Tuple parameters: one `TupleN<…>` on the Java API; conversion reads `.$0`, `.$1`, … (mirrors JNI).
@@ -810,6 +850,53 @@ extension FFMSwift2JavaGenerator {
                     )
                   ),
                   .placeholderForDowncall, // perform the downcall here
+                ],
+                extractResult: .property(.constant("result$initialize"), propertyName: "result")
+              )
+            )
+
+          case .array(let element)
+          where element == knownTypes.int16 || element == knownTypes.int32 || element == knownTypes.int64:
+            let info = primitiveIntArrayInfo(for: element)!
+            return TranslatedResult(
+              javaResultType: .array(info.javaElement),
+              annotations: resultAnnotations,
+              outParameters: [],
+              outCallback: OutCallback(
+                name: "result$initialize",
+                members: [
+                  "\(info.javaElementName)[] result = null"
+                ],
+                parameters: [
+                  JavaParameter(name: "pointer", type: .javaForeignMemorySegment),
+                  JavaParameter(name: "count", type: .long),
+                ],
+                cFunc: CFunction(
+                  resultType: .void,
+                  name: "apply",
+                  parameters: [
+                    CParameter(type: .pointer(.integral(.signed(bits: info.bits)))),
+                    CParameter(type: .integral(.size_t)),
+                  ],
+                  isVariadic: false
+                ),
+                body:
+                  "this.result = _0.reinterpret(_1 * ValueLayout.\(info.valueLayoutName).byteSize()).toArray(ValueLayout.\(info.valueLayoutName)); // copy native Swift Int\(info.bits) array to Java \(info.javaElementName)[]"
+              ),
+              conversion: .initializeResultWithUpcall(
+                [
+                  .introduceVariable(
+                    name: "result$initialize",
+                    initializeWith: .javaNew(
+                      .commaSeparated(
+                        [
+                          .placeholderForSwiftThunkName, .constant("result$initialize.Function$Impl()"),
+                        ],
+                        separator: "."
+                      )
+                    )
+                  ),
+                  .placeholderForDowncall,
                 ],
                 extractResult: .property(.constant("result$initialize"), propertyName: "result")
               )

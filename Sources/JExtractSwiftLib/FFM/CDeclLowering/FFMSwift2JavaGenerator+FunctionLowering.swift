@@ -361,6 +361,46 @@ struct CdeclLowering {
             conversion: arrayInit,
           )
 
+        case .array(let element)
+        where element == knownTypes.int16 || element == knownTypes.int32 || element == knownTypes.int64:
+          // Lower [Int16/Int32/Int64] as a typed pointer and element count.
+          let cdeclParameters = [
+            SwiftParameter(
+              convention: .byValue,
+              parameterName: "\(parameterName)_pointer",
+              type: knownTypes.unsafePointer(element),
+            ),
+            SwiftParameter(
+              convention: .byValue,
+              parameterName: "\(parameterName)_count",
+              type: knownTypes.int,
+            ),
+          ]
+
+          let bufferPointerInit = ConversionStep.initialize(
+            knownTypes.unsafeBufferPointer(element),
+            arguments: [
+              LabeledArgument(
+                label: "start",
+                argument: .explodedComponent(.placeholder, component: "pointer"),
+              ),
+              LabeledArgument(
+                label: "count",
+                argument: .explodedComponent(.placeholder, component: "count"),
+              ),
+            ],
+          )
+
+          let arrayInit = ConversionStep.initialize(
+            type,
+            arguments: [LabeledArgument(argument: bufferPointerInit)],
+          )
+
+          return LoweredParameter(
+            cdeclParameters: cdeclParameters,
+            conversion: arrayInit,
+          )
+
         case .foundationData, .essentialsData:
           break
 
@@ -786,6 +826,46 @@ struct CdeclLowering {
                           result: .method(
                             base: "\(outParameterName)_initialize",
                             methodName: nil, // just `(...)` apply the closure
+                            arguments: [
+                              .init(label: nil, argument: .member(.constant("_0"), member: "baseAddress!")),
+                              .init(label: nil, argument: .member(.constant("_0"), member: "count")),
+                            ],
+                          ),
+                        )
+                    )
+                  ],
+                )
+              ],
+              name: resultName,
+            ),
+          )
+
+        case .array(let element)
+        where element == knownTypes.int16 || element == knownTypes.int32 || element == knownTypes.int64:
+          let resultName = "_result"
+
+          return LoweredResult(
+            cdeclResultType: .void,
+            cdeclOutParameters: [
+              SwiftParameter(
+                convention: .byValue,
+                parameterName: "\(outParameterName)_initialize",
+                type: knownTypes.functionInitializeIntBuffer(element),
+              )
+            ],
+            conversion: .aggregate(
+              [
+                .method(
+                  base: resultName,
+                  methodName: "withUnsafeBufferPointer",
+                  arguments: [
+                    .init(
+                      argument:
+                        .closureLowering(
+                          parameters: [.placeholder],
+                          result: .method(
+                            base: "\(outParameterName)_initialize",
+                            methodName: nil,
                             arguments: [
                               .init(label: nil, argument: .member(.constant("_0"), member: "baseAddress!")),
                               .init(label: nil, argument: .member(.constant("_0"), member: "count")),

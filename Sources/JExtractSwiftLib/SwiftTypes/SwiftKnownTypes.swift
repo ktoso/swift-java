@@ -68,6 +68,22 @@ struct SwiftKnownTypes {
     )
   }
 
+  /// `(UnsafePointer<Element>, Int) -> ()` function type.
+  ///
+  /// Used to initialize an integer buffer with the passed elements and element count.
+  func functionInitializeIntBuffer(_ elementType: SwiftType) -> SwiftType {
+    .function(
+      SwiftFunctionType(
+        convention: .c,
+        parameters: [
+          SwiftParameter(convention: .byValue, parameterName: nil, type: self.unsafePointer(elementType)),
+          SwiftParameter(convention: .byValue, parameterName: nil, type: self.int),
+        ],
+        resultType: .void
+      )
+    )
+  }
+
   func unsafePointer(_ pointeeType: SwiftType) -> SwiftType {
     .nominal(
       SwiftNominalType(
