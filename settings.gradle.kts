@@ -68,10 +68,13 @@ val ffmModules = setOf(
 val skipped = mutableListOf<String>()
 
 include("SwiftKitCore")
+include("SwiftKitCoreNative")
 if (ffmCapable) {
     include("SwiftKitFFM")
+    include("SwiftKitFFMNative")
 } else {
     skipped += "SwiftKitFFM"
+    skipped += "SwiftKitFFMNative"
 }
 
 // Include sample apps -- you can run them via `gradle Name:run`

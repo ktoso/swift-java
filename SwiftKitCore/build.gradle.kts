@@ -14,12 +14,12 @@
 
 plugins {
     id("build-logic.java-application-conventions")
+    id("build-logic.java-publishing-conventions")
     id("me.champeau.jmh") version "0.7.2"
-    `maven-publish`
 }
 
-group = "org.swift.swiftkit"
-version = "1.0-SNAPSHOT"
+description = "SwiftKit Core: shared runtime support for Swift/Java interop (JNI mode)."
+
 base {
     archivesName = "swiftkit-core"
 }
@@ -27,18 +27,6 @@ base {
 repositories {
     mavenLocal()
     mavenCentral()
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            groupId = group as? String
-            artifactId = "swiftkit-core"
-            version = "1.0-SNAPSHOT"
-
-            from(components["java"])
-        }
-    }
 }
 
 java {

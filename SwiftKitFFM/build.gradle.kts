@@ -14,11 +14,10 @@
 
 plugins {
     id("build-logic.java-application-conventions")
-    `maven-publish`
+    id("build-logic.java-publishing-conventions")
 }
 
-group = "org.swift.swiftkit"
-version = "1.0-SNAPSHOT"
+description = "SwiftKit FFM: Swift/Java interop using java.lang.foreign (Panama). Requires JDK 22+."
 
 base {
     archivesName = "swiftkit-ffm"
@@ -27,18 +26,6 @@ base {
 repositories {
     mavenLocal()
     mavenCentral()
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            groupId = group as? String
-            artifactId = "swiftkit-ffm"
-            version = "1.0-SNAPSHOT"
-
-            from(components["java"])
-        }
-    }
 }
 
 java {

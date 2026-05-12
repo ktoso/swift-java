@@ -40,27 +40,31 @@ E.g sdkman install command:
 sdk install java 25.0.1-amzn
 ```
 
-## Self-publish supporting Java libraries
+## Consuming the Java libraries
 
-Swift-java relies on supporting libraries that are under active development and not yet published to Maven Central. To use the project, you'll need to self-publish these libraries locally so your Java project can depend on them.
+The supporting Java libraries are published to Maven Central as
+`org.swift.swiftjava:swiftkit-core` and `org.swift.swiftjava:swiftkit-ffm`,
+together with per-platform native classifier jars (`swiftkit-core-native`,
+`swiftkit-ffm-native`) that ship the required Swift dylibs.
 
-To publish the libraries to your local maven repository (`$HOME/.m2`), you can run:
-
-```
-// in swift-java/
-./gradlew publishToMavenLocal
-```
-
-To consume these libraries in your Java project built using Gradle, you can then include the local repository in the repositories to resolve dependencies from:
-
-```
+```kotlin
 repositories {
-    mavenLocal()
     mavenCentral()
+    // For -SNAPSHOT versions from the main branch:
+    maven("https://central.sonatype.com/repository/maven-snapshots/") {
+        mavenContent { snapshotsOnly() }
+    }
+}
+
+dependencies {
+    implementation("org.swift.swiftjava:swiftkit-core:0.2.1-SNAPSHOT")
+    runtimeOnly("org.swift.swiftjava:swiftkit-core-native:0.2.1-SNAPSHOT:${osdetector.classifier}")
 }
 ```
 
-We anticipate simplifying this in the future.
+See [PUBLISHING.md](./PUBLISHING.md) for the full coordinate matrix, classifier
+list, the cut-a-release flow, and instructions for publishing locally to
+`~/.m2/` for development.
 
 ## SwiftJava macros
 
