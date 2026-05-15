@@ -185,10 +185,7 @@ let package = Package(
       name: "JavaIO",
       dependencies: ["SwiftJava", "JavaUtil"],
       path: "Sources/JavaStdlib/JavaIO",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaLangReflect",
