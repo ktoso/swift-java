@@ -179,10 +179,7 @@ let package = Package(
       name: "JavaNet",
       dependencies: ["SwiftJava", "JavaUtil"],
       path: "Sources/JavaStdlib/JavaNet",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaIO",
