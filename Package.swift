@@ -244,10 +244,7 @@ let package = Package(
     ),
 
     .target(
-      name: "SwiftRuntimeFunctions",
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      name: "SwiftRuntimeFunctions"
     ),
 
     .target(
