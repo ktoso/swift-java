@@ -16,7 +16,7 @@ import SwiftJava
 
 extension JavaSwiftArena {
   /// A cache for the default auto arena found in SwiftKitCore
-  public static internal(set) var defaultAutoArena: JavaSwiftArena = {
+  public static internal(set) nonisolated(unsafe) var defaultAutoArena: JavaSwiftArena = {
     let swiftMemoryClass = try! JavaClass<SwiftJavaRuntimeSupport.JavaSwiftMemoryManagement>()
     return swiftMemoryClass.defaultSwiftJavaAutoArena
   }()

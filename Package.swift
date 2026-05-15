@@ -234,10 +234,7 @@ let package = Package(
       dependencies: [
         "SwiftJava"
       ],
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
 
     .target(
