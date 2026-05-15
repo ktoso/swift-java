@@ -191,10 +191,7 @@ let package = Package(
       name: "JavaLangReflect",
       dependencies: ["SwiftJava", "JavaUtil"],
       path: "Sources/JavaStdlib/JavaLangReflect",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
 
     .plugin(
