@@ -173,10 +173,7 @@ let package = Package(
       name: "JavaUtilJar",
       dependencies: ["SwiftJava", "JavaUtil"],
       path: "Sources/JavaStdlib/JavaUtilJar",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaNet",
