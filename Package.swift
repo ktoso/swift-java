@@ -369,9 +369,6 @@ let package = Package(
       ],
       exclude: [
         "SimpleJavaProject"
-      ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
       ]
     ),
 
