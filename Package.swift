@@ -170,10 +170,7 @@ let package = Package(
       name: "JavaUtilFunction",
       dependencies: ["SwiftJava"],
       path: "Sources/JavaStdlib/JavaUtilFunction",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaUtilJar",
