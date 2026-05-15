@@ -227,10 +227,7 @@ let package = Package(
 
     .target(
       name: "ExampleSwiftLibrary",
-      dependencies: [],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      dependencies: []
     ),
     .target(
       name: "SwiftJavaRuntimeSupport",
