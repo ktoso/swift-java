@@ -24,6 +24,21 @@ let package = Package(
       targets: ["SwiftJava", "SwiftJavaRuntimeSupport"]
     ),
 
+    // Auto-linkage variant of SwiftJava. Same targets as the .dynamic
+    // SwiftJava product, but without an explicit `type:` so SwiftPM picks
+    // linkage based on the consumer:
+    //   - A .dynamic library consumer absorbs these objects into its own
+    //     dylib, yielding a single .so / .dylib instead of one per package
+    //   - A .static library consumer or executable links them statically
+    // Use this when shipping a single dynamic artifact that should already
+    // contain SwiftJava's runtime support (e.g. a JNI .so loaded into a JVM
+    // alongside other Swift dylibs, where two independent Swift runtimes
+    // would conflict).
+    .library(
+      name: "SwiftJavaStatic",
+      targets: ["SwiftJava", "SwiftJavaRuntimeSupport"]
+    ),
+
     .library(
       name: "SwiftJavaConfigurationShared",
       targets: ["SwiftJavaConfigurationShared"]
@@ -88,6 +103,13 @@ let package = Package(
     .library(
       name: "SwiftRuntimeFunctions",
       type: .dynamic,
+      targets: ["SwiftRuntimeFunctions"]
+    ),
+
+    // Auto-linkage variant of SwiftRuntimeFunctions; see SwiftJavaStatic
+    // above for rationale
+    .library(
+      name: "SwiftRuntimeFunctionsStatic",
       targets: ["SwiftRuntimeFunctions"]
     ),
 
