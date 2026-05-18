@@ -121,10 +121,10 @@ extension Logger.Level: ExpressibleByArgument {
   public var defaultValueDescription: String {
     "log level"
   }
-  public private(set) static var allValueStrings: [String] =
+  public private(set) static nonisolated(unsafe) var allValueStrings: [String] =
     ["trace", "debug", "info", "notice", "warning", "error", "critical"]
 
-  public private(set) static var defaultCompletionKind: CompletionKind = .default
+  public private(set) static nonisolated(unsafe) var defaultCompletionKind: CompletionKind = .default
 }
 
 extension Logger.Level {

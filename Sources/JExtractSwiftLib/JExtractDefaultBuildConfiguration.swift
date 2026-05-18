@@ -18,7 +18,7 @@ import SwiftSyntax
 
 /// A default, fixed build configuration during static analysis for interface extraction.
 struct JExtractDefaultBuildConfiguration: BuildConfiguration {
-  static let shared = JExtractDefaultBuildConfiguration()
+  static nonisolated(unsafe) let shared = JExtractDefaultBuildConfiguration()
 
   private var base: StaticBuildConfiguration
 

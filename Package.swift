@@ -329,8 +329,7 @@ let package = Package(
         .process("Resources")
       ],
       swiftSettings: [
-        .swiftLanguageMode(.v5),
-        .enableUpcomingFeature("BareSlashRegexLiterals"),
+        .enableUpcomingFeature("BareSlashRegexLiterals")
       ],
       plugins: [
         .plugin(name: "_StaticBuildConfigPlugin")

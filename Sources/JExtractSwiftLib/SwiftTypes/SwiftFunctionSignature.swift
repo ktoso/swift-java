@@ -460,8 +460,8 @@ extension AccessorBlockSyntax {
   struct SupportedAccessorKinds: OptionSet {
     var rawValue: UInt8
 
-    static var get: Self = .init(rawValue: 1 << 0)
-    static var set: Self = .init(rawValue: 1 << 1)
+    static let get: Self = .init(rawValue: 1 << 0)
+    static let set: Self = .init(rawValue: 1 << 1)
   }
 
   /// Determine what operations (i.e. get and/or set) supported in this `AccessorBlockSyntax`

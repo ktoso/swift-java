@@ -17,7 +17,7 @@ import SwiftJavaJNICore
 /// Represents a value of a `java.lang.foreign.Self` that we want to render in generated Java code.
 ///
 /// This type may gain further methods for adjusting target layout, byte order, names etc.
-public struct ForeignValueLayout: CustomStringConvertible, Equatable {
+public struct ForeignValueLayout: CustomStringConvertible, Equatable, Sendable {
   var inlineComment: String?
   var value: String
 
