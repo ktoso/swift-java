@@ -183,55 +183,37 @@ let package = Package(
       name: "JavaUtil",
       dependencies: ["SwiftJava"],
       path: "Sources/JavaStdlib/JavaUtil",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaUtilFunction",
       dependencies: ["SwiftJava"],
       path: "Sources/JavaStdlib/JavaUtilFunction",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaUtilJar",
       dependencies: ["SwiftJava", "JavaUtil"],
       path: "Sources/JavaStdlib/JavaUtilJar",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaNet",
       dependencies: ["SwiftJava", "JavaUtil"],
       path: "Sources/JavaStdlib/JavaNet",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaIO",
       dependencies: ["SwiftJava", "JavaUtil"],
       path: "Sources/JavaStdlib/JavaIO",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
     .target(
       name: "JavaLangReflect",
       dependencies: ["SwiftJava", "JavaUtil"],
       path: "Sources/JavaStdlib/JavaLangReflect",
-      exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      exclude: ["swift-java.config"]
     ),
 
     .plugin(
