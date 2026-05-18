@@ -300,7 +300,6 @@ let package = Package(
       // target name must match the product name.
       path: "Sources/SwiftJavaTool",
       swiftSettings: [
-        .swiftLanguageMode(.v5),
         .enableUpcomingFeature("BareSlashRegexLiterals"),
         .define(
           "SYSTEM_PACKAGE_DARWIN",
