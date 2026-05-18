@@ -34,9 +34,6 @@ let package = Package(
         "JavaCommonsCSV",
       ],
       exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ],
       plugins: [
         .plugin(name: "SwiftJavaPlugin", package: "swift-java")
       ]
@@ -52,9 +49,6 @@ let package = Package(
         .product(name: "JavaNet", package: "swift-java"),
       ],
       exclude: ["swift-java.config"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ],
       plugins: [
         //        .plugin(name: "SwiftJavaBootstrapJavaPlugin", package: "swift-java"),
         .plugin(name: "SwiftJavaPlugin", package: "swift-java")
