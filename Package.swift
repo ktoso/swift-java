@@ -406,9 +406,6 @@ let package = Package(
       dependencies: [
         "JExtractSwiftLib",
         "CodePrinting",
-      ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
       ]
     ),
 
