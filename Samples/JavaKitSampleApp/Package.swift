@@ -33,9 +33,6 @@ let package = Package(
         .product(name: "JavaUtilFunction", package: "swift-java"),
         .product(name: "JavaUtilJar", package: "swift-java"),
       ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ],
       plugins: [
         .plugin(name: "JavaCompilerPlugin", package: "swift-java"),
         .plugin(name: "SwiftJavaPlugin", package: "swift-java"),
@@ -46,9 +43,6 @@ let package = Package(
       name: "JavaKitExampleTests",
       dependencies: [
         "JavaKitExample"
-      ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
       ]
     ),
   ]
