@@ -165,9 +165,6 @@ let package = Package(
       dependencies: [
         .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
         .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
-      ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
       ]
     ),
     .target(
