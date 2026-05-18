@@ -108,7 +108,7 @@ package class JavaTranslator {
 
 extension JavaTranslator {
   /// Default formatting options.
-  private static let defaultFormat = BasicFormat(indentationWidth: .spaces(2))
+  private static nonisolated(unsafe) let defaultFormat = BasicFormat(indentationWidth: .spaces(2))
 
   /// Default set of modules that will always be imported.
   private static let defaultImportedSwiftModules: Set<String> = [

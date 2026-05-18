@@ -275,8 +275,7 @@ let package = Package(
         .product(name: "Subprocess", package: "swift-subprocess"),
       ],
       swiftSettings: [
-        .swiftLanguageMode(.v5),
-        .enableUpcomingFeature("BareSlashRegexLiterals"),
+        .enableUpcomingFeature("BareSlashRegexLiterals")
       ]
     ),
 
