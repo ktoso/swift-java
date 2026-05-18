@@ -445,9 +445,6 @@ let package = Package(
       name: "SwiftRuntimeFunctionsTests",
       dependencies: [
         "SwiftRuntimeFunctions"
-      ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
       ]
     ),
   ]
