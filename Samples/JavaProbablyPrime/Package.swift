@@ -33,9 +33,6 @@ let package = Package(
         .product(name: "SwiftJava", package: "swift-java"),
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
       ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ],
       plugins: [
         .plugin(name: "SwiftJavaPlugin", package: "swift-java")
       ]
