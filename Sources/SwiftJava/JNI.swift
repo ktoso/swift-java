@@ -25,7 +25,7 @@ package final class JNI {
   ///
   /// This may be `nil` in the case where `SwiftJava` is not loaded as a dynamic lib
   /// by the Java sources.
-  package fileprivate(set) static var shared: JNI?
+  package fileprivate(set) nonisolated(unsafe) static var shared: JNI?
 
   /// The default application class loader
   package let applicationClassLoader: JavaClassLoader?
