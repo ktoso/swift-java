@@ -364,9 +364,6 @@ let package = Package(
       dependencies: [
         "SwiftJava",
         "JavaNet",
-      ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
       ]
     ),
 
@@ -375,9 +372,6 @@ let package = Package(
       dependencies: [
         "SwiftJavaMacros",
         .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
-      ],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
       ]
     ),
 
@@ -394,10 +388,7 @@ let package = Package(
 
     .testTarget(
       name: "SwiftJavaConfigurationSharedTests",
-      dependencies: ["SwiftJavaConfigurationShared"],
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ]
+      dependencies: ["SwiftJavaConfigurationShared"]
     ),
 
     .testTarget(
