@@ -20,9 +20,6 @@ let package = Package(
         .product(name: "Benchmark", package: "package-benchmark"),
       ],
       path: "Benchmarks/JavaApiCallBenchmarks",
-      swiftSettings: [
-        .swiftLanguageMode(.v5)
-      ],
       plugins: [
         .plugin(name: "BenchmarkPlugin", package: "package-benchmark")
       ]
