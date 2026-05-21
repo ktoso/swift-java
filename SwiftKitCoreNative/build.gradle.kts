@@ -17,13 +17,13 @@
 // libSwiftRuntimeFunctions and libSwiftJava under META-INF/native/.
 
 plugins {
-    id("build-logic.native-publishing-conventions")
+    id("build-logic.native-swift-publishing-conventions")
 }
 
 base {
     archivesName = "swiftkit-core-native"
 }
-description = "Swift native dylibs needed by swiftkit-core at runtime."
+description = "Swift native dynamic libraries needed by swiftkit-core at runtime."
 
 val swiftReleaseDir = rootProject.extra["swiftReleaseDir"] as File
 

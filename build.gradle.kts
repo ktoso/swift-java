@@ -15,7 +15,7 @@
 import org.jreleaser.model.Active
 
 plugins {
-    base    // gives the root project a `clean` task that JReleaser attaches to
+    base
     id("org.jreleaser") version "1.24.0"
 }
 
