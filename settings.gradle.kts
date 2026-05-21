@@ -69,12 +69,10 @@ val skipped = mutableListOf<String>()
 
 include("SwiftKitCore")
 include("SwiftKitCoreNative")
-if (ffmCapable) {
-    include("SwiftKitFFM")
-    include("SwiftKitFFMNative")
-} else {
-    skipped += "SwiftKitFFM"
-    skipped += "SwiftKitFFMNative"
+
+val ffmRootProjects = listOf("SwiftKitFFM", "SwiftKitFFMNative")
+ffmRootProjects.forEach { name ->
+    if (ffmCapable) include(name) else skipped += name
 }
 
 // Include sample apps -- you can run them via `gradle Name:run`

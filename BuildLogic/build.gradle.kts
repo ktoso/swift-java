@@ -24,7 +24,5 @@ repositories {
 
 dependencies {
     implementation(libs.kotlinx.serialization.json)
-    // Provides the com.google.osdetector plugin for the native publishing convention
-    // (used to derive the host classifier for local publishToMavenLocal).
     implementation("com.google.gradle:osdetector-gradle-plugin:1.7.3")
 }

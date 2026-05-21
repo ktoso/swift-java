@@ -45,14 +45,14 @@ publishing {
                 inceptionYear.set("2024")
                 licenses {
                     license {
-                        name.set("Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                        name.set(providers.gradleProperty("licenseName"))
+                        url.set(providers.gradleProperty("licenseUrl"))
                         distribution.set("repo")
                     }
                 }
                 developers {
                     developer {
-                        id.set("swift-server")
+                        id.set("swift")
                         name.set("Swift.org project authors")
                         url.set("https://swift.org")
                     }

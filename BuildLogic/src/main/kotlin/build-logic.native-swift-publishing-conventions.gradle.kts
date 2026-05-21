@@ -21,7 +21,8 @@
 // them up at runtime via getResourceAsStream().
 //
 // Classifier source of truth (in priority order):
-//   1. Gradle property `nativeClassifier` (set by CI to e.g. "ubuntu22.04-x86_64")
+//   1. Gradle property `nativeClassifier` (set by CI to e.g.
+//      "ubuntu22.04-swift_6.3-x86_64")
 //   2. osdetector.classifier fallback for local development
 //
 // Each module must:
@@ -38,6 +39,12 @@ plugins {
 
 val nativeClassifier: String = providers.gradleProperty("nativeClassifier").orNull
     ?: osdetector.classifier
+
+// Swift toolchain major.minor (e.g. "6.3"). CI passes `-PswiftVersion=$SWIFT_TOOLCHAIN_VERSION`;
+// local dev falls back to parsing `swift --version`.
+val swiftVersion: String = providers.gradleProperty("swiftVersion").orNull
+    ?: detectSwiftVersion()
+    ?: "unknown"
 
 java {
     toolchain { languageVersion = JavaLanguageVersion.of(25) }
@@ -66,14 +73,14 @@ publishing {
                 inceptionYear.set("2024")
                 licenses {
                     license {
-                        name.set("Apache License, Version 2.0")
-                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                        name.set(providers.gradleProperty("licenseName"))
+                        url.set(providers.gradleProperty("licenseUrl"))
                         distribution.set("repo")
                     }
                 }
                 developers {
                     developer {
-                        id.set("swift-server")
+                        id.set("swift")
                         name.set("Swift.org project authors")
                         url.set("https://swift.org")
                     }
@@ -105,8 +112,9 @@ publishing {
 
 // Tag every jar (main + empty sources + empty javadoc) with the platform
 // classifier so they don't collide with other matrix entries' uploads. Stamp
-// manifest with both standard JAR (Implementation-*) and OSGi (Bundle-NativeCode)
-// metadata for runtimes that can act on it.
+// manifest with standard JAR (Implementation-*) and OSGi (Bundle-NativeCode)
+// metadata, plus Swift-Version so consumers can see exactly which Swift
+// toolchain produced the dylibs.
 tasks.withType<Jar>().configureEach {
     val current = archiveClassifier.get()
     archiveClassifier.set(
@@ -125,16 +133,19 @@ tasks.withType<Jar>().configureEach {
             "Specification-Title" to project.name,
             "Specification-Version" to project.version.toString(),
             "Specification-Vendor" to "Swift.org project authors",
-            "Bundle-NativeCode" to bundleNativeCodeFor(nativeClassifier),
+            "Swift-Version" to swiftVersion,
+            "Bundle-NativeCode" to bundleNativeCodeFor(nativeClassifier, swiftVersion),
         )
     }
 }
 
-// Convert our Maven classifier (e.g. "osx-aarch_64", "ubuntu22.04-x86_64") into
-// an OSGi Bundle-NativeCode header. OSGi only knows osname+processor, not Linux
-// distro variants, so all linux-* classifiers collapse to osname=Linux. Trailing
-// `,*` is OSGi syntax meaning "match this exactly OR fall back to anything".
-fun bundleNativeCodeFor(classifier: String): String {
+// Convert our Maven classifier (e.g. "osx-aarch_64",
+// "ubuntu22.04-swift_6.3-x86_64") into an OSGi Bundle-NativeCode header. OSGi
+// only knows osname+processor, so distro variants collapse to osname=Linux;
+// the additional `swift=<version>` filter is appended on Linux because Swift's
+// Linux runtime ABI is not stable across toolchain versions. Trailing `,*` is
+// OSGi syntax meaning "match this exactly OR fall back to anything".
+fun bundleNativeCodeFor(classifier: String, swiftVersion: String): String {
     val osname = when {
         classifier.startsWith("osx") || classifier.contains("darwin") ||
             classifier.contains("macos") -> "MacOSX"
@@ -157,7 +168,24 @@ fun bundleNativeCodeFor(classifier: String): String {
             else -> "$it.so"
         }
     }
-    return nativeFiles.joinToString("; ") + "; osname=$osname; processor=$processor,*"
+    val filters = mutableListOf("osname=$osname", "processor=$processor")
+    if (osname == "Linux" && swiftVersion != "unknown") {
+        filters += "swift=$swiftVersion"
+    }
+    return nativeFiles.joinToString("; ") + "; " + filters.joinToString("; ") + ",*"
+}
+
+// Local-dev fallback: parse the major.minor Swift version from `swift --version`.
+// Returns null on any error so the caller can decide on a default.
+fun detectSwiftVersion(): String? = try {
+    val process = ProcessBuilder("swift", "--version")
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText()
+    process.waitFor()
+    Regex("""Swift version (\d+\.\d+)""").find(output)?.groupValues?.get(1)
+} catch (_: Exception) {
+    null
 }
 
 // artifactId comes from base.archivesName (e.g. "swiftkit-core-native").

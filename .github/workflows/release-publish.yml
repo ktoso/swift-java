@@ -143,9 +143,14 @@ jobs:
 
   # ==== --------------------------------------------------------------------
   # Native Linux classifier jars (one per matrix entry)
+  #
+  # The published Maven classifier is composed at runtime as
+  # `<platform>-swift_${SWIFT_TOOLCHAIN_VERSION}-<arch>` so the Swift toolchain
+  # version is baked into the artifact name (Swift's Linux runtime ABI is not
+  # stable across toolchain versions).
   # ==== --------------------------------------------------------------------
   publish-natives-linux:
-    name: Publish natives (${{ matrix.classifier }}) release
+    name: Publish natives (${{ matrix.platform }}-${{ matrix.arch }}) release
     needs: publish-java
     runs-on: ${{ matrix.runs_on }}
     container:
@@ -154,29 +159,37 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - classifier: ubuntu22.04-x86_64
+          - platform: ubuntu22.04
+            arch: x86_64
             runs_on: ubuntu-latest
             container: swift:6.3-jammy
-          - classifier: ubuntu22.04-aarch_64
+          - platform: ubuntu22.04
+            arch: aarch_64
             runs_on: ubuntu-24.04-arm
             container: swift:6.3-jammy
-          - classifier: ubuntu24.04-x86_64
+          - platform: ubuntu24.04
+            arch: x86_64
             runs_on: ubuntu-latest
             container: swift:6.3-noble
-          - classifier: ubuntu24.04-aarch_64
+          - platform: ubuntu24.04
+            arch: aarch_64
             runs_on: ubuntu-24.04-arm
             container: swift:6.3-noble
-          - classifier: amazonlinux2-x86_64
+          - platform: amazonlinux2
+            arch: x86_64
             runs_on: ubuntu-latest
             container: swift:6.3-amazonlinux2
-          - classifier: amazonlinux2-aarch_64
+          - platform: amazonlinux2
+            arch: aarch_64
             runs_on: ubuntu-24.04-arm
             container: swift:6.3-amazonlinux2
-          - classifier: linux-x86_64
+          - platform: linux
+            arch: x86_64
             runs_on: ubuntu-latest
             container: swift:6.3-jammy
             swift_sdk: x86_64-swift-linux-musl
-          - classifier: linux-aarch_64
+          - platform: linux
+            arch: aarch_64
             runs_on: ubuntu-24.04-arm
             container: swift:6.3-jammy
             swift_sdk: aarch64-swift-linux-musl
@@ -204,6 +217,13 @@ jobs:
             echo "JAVA_HOME_25=$JAVA_HOME_25_ARM64" >> $GITHUB_ENV
           fi
 
+      - name: Compute Maven classifier
+        shell: bash
+        run: |
+          CLASSIFIER="${{ matrix.platform }}-swift_${SWIFT_TOOLCHAIN_VERSION}-${{ matrix.arch }}"
+          echo "CLASSIFIER=$CLASSIFIER" >> "$GITHUB_ENV"
+          echo "Computed classifier: $CLASSIFIER"
+
       - name: Install Swift static-linux SDK
         if: matrix.swift_sdk
         shell: bash
@@ -213,10 +233,13 @@ jobs:
           SWIFT_STATIC_SDK_URL="https://download.swift.org/swift-${VERSION}-RELEASE/static-sdk/swift-${VERSION}-RELEASE_static-linux-0.0.1/swift-${VERSION}-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz"
           swift sdk install "$SWIFT_STATIC_SDK_URL"
 
-      - name: Stage ${{ matrix.classifier }} native jars
+      - name: Stage ${{ env.CLASSIFIER }} native jars
         shell: bash
         run: |
-          GRADLE_ARGS=(-PnativeClassifier=${{ matrix.classifier }})
+          GRADLE_ARGS=(
+            -PnativeClassifier="${CLASSIFIER}"
+            -PswiftVersion="${SWIFT_TOOLCHAIN_VERSION}"
+          )
           if [[ -n "${{ matrix.swift_sdk }}" ]]; then
             GRADLE_ARGS+=(-PnativeBuildSdk=${{ matrix.swift_sdk }})
           fi
@@ -232,7 +255,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jreleaser-logs-natives-${{ matrix.classifier }}
+          name: jreleaser-logs-natives-${{ env.CLASSIFIER }}
           path: |
             build/jreleaser/trace.log
             build/jreleaser/output.properties
@@ -276,7 +299,9 @@ jobs:
       - name: Stage osx-aarch_64 native jars
         shell: bash
         run: |
-          ./gradlew -PnativeClassifier=osx-aarch_64 \
+          ./gradlew \
+            -PnativeClassifier=osx-aarch_64 \
+            -PswiftVersion="${SWIFT_TOOLCHAIN_VERSION}" \
             :SwiftKitCoreNative:publish \
             :SwiftKitFFMNative:publish \
             --no-daemon --stacktrace

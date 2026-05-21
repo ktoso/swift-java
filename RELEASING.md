@@ -1,32 +1,17 @@
 # Releasing swift-java
 
 This document covers the one-time prerequisites for a maintainer to publish
-artifacts to Maven Central and the recurring flow for cutting a release.
+artifacts to Maven Central, the CI workflows that perform the publishing, and
+the recurring flow for cutting a release.
 
 For the *what* (coordinates, classifiers, repository URLs, consumption
 snippets), see [`PUBLISHING.md`](./PUBLISHING.md).
 
 ## One-time prerequisites
 
-### 1. Claim the Sonatype Central Portal namespace
+### Obtain Maven Central credentials
 
-The `org.swift.swiftjava` group must be claimed and DNS-verified on
-https://central.sonatype.com **before** the first publish attempt — both
-snapshots and releases.
-
-1. Sign in at https://central.sonatype.com (Google or GitHub account is
-   fine; the Portal account is separate from any legacy OSSRH JIRA account).
-2. Go to **Namespaces** → **Add namespace** and request `org.swift.swiftjava`.
-3. The Portal will issue a TXT record name + value to add to DNS for
-   `swift.org`. Coordinate with whoever administers the swift.org DNS zone.
-4. Wait for the Portal to verify the TXT record (usually within minutes of
-   propagation).
-
-Reference: https://central.sonatype.org/register/central-portal/
-
-### 2. Generate a user-token for CI
-
-In the Portal:
+In the Sonatype Central Portal at https://central.sonatype.com:
 
 1. Click your username → **View Account**.
 2. **Generate User Token**. Save the username + password tuple — these go
@@ -39,7 +24,7 @@ If snapshot uploads return 401, file an OSSRH JIRA ticket linking the
 verified Portal namespace to your account so the legacy snapshot endpoint
 recognizes it.
 
-### 3. Generate and export a PGP signing key
+### Generate and export a PGP signing key
 
 Maven Central requires every artifact to be PGP-signed. JReleaser reads the
 key material from environment variables (`JRELEASER_GPG_*`).
@@ -66,19 +51,19 @@ Don't lose `private.asc` or the passphrase — together they're the only way
 to sign future releases under this key. Storing them in a team password
 manager is the typical path.
 
-### 4. Configure repository secrets
+### Configure repository secrets
 
 In the GitHub repo's **Settings → Secrets and variables → Actions**, create:
 
-| Secret | Value |
-|--------|-------|
-| `JRELEASER_MAVENCENTRAL_USERNAME` | Portal user-token name |
-| `JRELEASER_MAVENCENTRAL_PASSWORD` | Portal user-token password |
-| `JRELEASER_NEXUS2_USERNAME` | Same as above (or OSSRH-issued credential) |
-| `JRELEASER_NEXUS2_PASSWORD` | Same as above |
-| `JRELEASER_GPG_PUBLIC_KEY` | Contents of `public.asc` (entire armored block, including BEGIN/END lines) |
-| `JRELEASER_GPG_SECRET_KEY` | Contents of `private.asc` (entire armored block) |
-| `JRELEASER_GPG_PASSPHRASE` | The passphrase used at key generation |
+| Secret                            | Value                                                                            |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `JRELEASER_MAVENCENTRAL_USERNAME` | Portal user-token name                                                           |
+| `JRELEASER_MAVENCENTRAL_PASSWORD` | Portal user-token password                                                       |
+| `JRELEASER_NEXUS2_USERNAME`       | Same as above (or OSSRH-issued credential)                                       |
+| `JRELEASER_NEXUS2_PASSWORD`       | Same as above                                                                    |
+| `JRELEASER_GPG_PUBLIC_KEY`        | Contents of `public.asc` (entire armored block, including BEGIN/END lines)       |
+| `JRELEASER_GPG_SECRET_KEY`        | Contents of `private.asc` (entire armored block)                                 |
+| `JRELEASER_GPG_PASSPHRASE`        | The passphrase used at key generation                                            |
 
 The publish workflows verify all required secrets are present in their
 first step and fail fast if any are empty, so a misconfiguration is caught
@@ -87,7 +72,7 @@ within seconds rather than after the build runs.
 > Don't paste GPG key contents into a chat, ticket, or shell history. Copy
 > directly from `public.asc` / `private.asc` into the GitHub Secrets UI.
 
-### 5. Verify locally before the first real release
+### Verify locally before the first real release
 
 ```bash
 ./gradlew :SwiftKitCore:publishToMavenLocal \
@@ -120,6 +105,30 @@ export JRELEASER_GPG_PASSPHRASE='<your-passphrase>'
 ls build/jreleaser/sign/
 ```
 
+## CI workflows
+
+Two GitHub Actions workflows handle publishing:
+
+| Workflow                                                                            | Trigger                                                              | What it does                                                                                                                                                                       |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`.github/workflows/snapshot-publish.yml`](.github/workflows/snapshot-publish.yml)  | Push to `main`; manual `workflow_dispatch`                           | One Java publish job + matrix of native publish jobs (one per platform classifier). Snapshots route to the Sonatype snapshots repo.                                                |
+| [`.github/workflows/release-publish.yml`](.github/workflows/release-publish.yml)    | Push of a `N.N.N` tag; manual `workflow_dispatch` with `ref` input   | Same shape as snapshot, plus tag/version match validation. Releases stage to Central Portal deployments for manual finalization.                                                   |
+
+Each workflow has three job groups:
+
+1. **`publish-java`** — single Linux container job. Runs `:SwiftKitCore:publish :SwiftKitFFM:publish` to stage to `build/staging-deploy/`, then `./gradlew jreleaserDeploy`. Publishes the classifier-less Java jars. Verifies all required secrets up-front so missing credentials fail fast (within seconds).
+2. **`publish-natives-linux`** — matrix of platform/arch entries; each entry computes the Maven classifier as `<platform>-swift_${SWIFT_TOOLCHAIN_VERSION}-<arch>` and runs `:SwiftKitCoreNative:publish :SwiftKitFFMNative:publish` with `-PnativeClassifier=<classifier> -PswiftVersion=<X.Y>` (and `-PnativeBuildSdk=<sdk>` for the static-SDK variants), then `./gradlew jreleaserDeploy`.
+3. **`publish-natives-macos`** — single macOS arm64 job, mirrors the Linux pattern with the fixed classifier `osx-aarch_64`.
+
+All native jobs depend on `publish-java` succeeding. **Each matrix job creates its own Sonatype Central Portal deployment** — releases require visiting https://central.sonatype.com/publishing/deployments and clicking Publish on each one. Snapshot uploads are silent (no clicks needed).
+
+The snapshot workflow has a final **`smoke-test-snapshot`** job that depends on every publish job. It creates a throwaway Gradle project that depends on the just-published `-SNAPSHOT` artifacts and resolves the `runtimeClasspath` configuration. This catches POM/metadata mistakes that pass JReleaser validation but break downstream consumers — for example, if a classifier is mis-spelled or a dependency reference is wrong.
+
+The Swift toolchain version is parameterized in each workflow as a top-level
+`SWIFT_TOOLCHAIN_VERSION` env var; when bumping Swift, update that value
+**and** the matrix `swift:X.Y-*` container references (GitHub Actions does not
+expand env into matrix `include` containers).
+
 ## Cutting a release
 
 1. Run `./scripts/release.sh` from a clean `main`. The script prompts for a
@@ -141,10 +150,9 @@ ls build/jreleaser/sign/
    `<version>` (no `-SNAPSHOT`); JReleaser routes uploads to the Central
    Portal release deployer.
 5. Wait for the workflow to finish. **Each matrix entry creates its own
-   USER_MANAGED deployment** — for a typical release this is ~10
-   deployments (1 Java + 8 Linux native classifiers + 1 macOS native).
-   Visit https://central.sonatype.com/publishing/deployments and click
-   **Publish** on each. Until clicked, nothing is visible on Maven Central.
+   USER_MANAGED deployment.** Visit
+   https://central.sonatype.com/publishing/deployments and click **Publish**
+   on each. Until clicked, nothing is visible on Maven Central.
 6. Once everything is published, run `./scripts/release.sh --next` to point
    `swift-java-jni-core` back at `main` for the next development cycle.
 
@@ -154,8 +162,6 @@ ls build/jreleaser/sign/
 
 ## Known operational caveats
 
-- **`scripts/release.sh` is macOS-only.** It uses BSD `sed -i ''` and
-  `xcrun swift`. Run it from a maintainer's macOS workstation, not Linux.
 - **Snapshot uploads can be silently slow.** Allow up to ~1 minute between
   `jreleaserDeploy` succeeding and the artifact appearing at
   `central.sonatype.com/repository/maven-snapshots/...`. The
