@@ -41,6 +41,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # Single source of truth for the Swift toolchain version used across all jobs.
+  # Bump this to upgrade Swift; ALSO update the matrix `swift:X.Y-*` container
+  # references below (GitHub Actions doesn't expand env into matrix `include`
+  # containers).
+  SWIFT_TOOLCHAIN_VERSION: "6.3"
   JRELEASER_NEXUS2_USERNAME: ${{ secrets.JRELEASER_NEXUS2_USERNAME }}
   JRELEASER_NEXUS2_PASSWORD: ${{ secrets.JRELEASER_NEXUS2_PASSWORD }}
   JRELEASER_GPG_PUBLIC_KEY:  ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
@@ -192,8 +197,9 @@ jobs:
         if: matrix.swift_sdk
         shell: bash
         run: |
-          # TODO: bump SWIFT_STATIC_SDK_URL when upgrading the Swift toolchain.
-          SWIFT_STATIC_SDK_URL="https://download.swift.org/swift-6.3-RELEASE/static-sdk/swift-6.3-RELEASE_static-linux-0.0.1/swift-6.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz"
+          # SDK URL is derived from SWIFT_TOOLCHAIN_VERSION at the top of this file.
+          VERSION="${SWIFT_TOOLCHAIN_VERSION}"
+          SWIFT_STATIC_SDK_URL="https://download.swift.org/swift-${VERSION}-RELEASE/static-sdk/swift-${VERSION}-RELEASE_static-linux-0.0.1/swift-${VERSION}-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz"
           swift sdk install "$SWIFT_STATIC_SDK_URL"
 
       - name: Stage ${{ matrix.classifier }} native jars
@@ -235,7 +241,7 @@ jobs:
       - name: Install Swift via Swiftly
         run: ./.github/scripts/install_swiftly.sh
         env:
-          SWIFT_VERSION: "6.3"
+          SWIFT_VERSION: ${{ env.SWIFT_TOOLCHAIN_VERSION }}
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -274,3 +280,79 @@ jobs:
           path: |
             build/jreleaser/trace.log
             build/jreleaser/output.properties
+
+  # ==== --------------------------------------------------------------------
+  # Smoke test: resolve the just-published -SNAPSHOT artifacts from a
+  # throwaway Gradle project. Catches POM/metadata mistakes that pass
+  # JReleaser validation but break real consumers.
+  # ==== --------------------------------------------------------------------
+  smoke-test-snapshot:
+    name: Smoke test snapshot consumption
+    needs: [publish-java, publish-natives-linux, publish-natives-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: 25
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compute version
+        id: version
+        run: echo "v=$(./gradlew -q printVersion)" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for snapshot metadata to become visible
+        shell: bash
+        run: |
+          # Snapshot uploads can take up to ~1 minute to appear via the public
+          # snapshot repo URL. Poll for maven-metadata.xml before trying to
+          # resolve.
+          URL="https://central.sonatype.com/repository/maven-snapshots/org/swift/swiftjava/swiftkit-core/${{ steps.version.outputs.v }}/maven-metadata.xml"
+          for i in {1..30}; do
+            if curl -sfL -o /dev/null "$URL"; then
+              echo "Snapshot metadata visible at $URL"
+              exit 0
+            fi
+            echo "[$i/30] not yet visible, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Snapshot metadata did not become visible at $URL"
+          exit 1
+
+      - name: Create throwaway consumer project and resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.v }}"
+          mkdir -p /tmp/smoke && cd /tmp/smoke
+          cat > settings.gradle.kts <<EOF
+          rootProject.name = "swiftjava-smoke"
+          EOF
+          cat > build.gradle.kts <<EOF
+          plugins {
+              id("com.google.osdetector") version "1.7.3"
+              java
+          }
+          repositories {
+              maven("https://central.sonatype.com/repository/maven-snapshots/") {
+                  mavenContent { snapshotsOnly() }
+              }
+              mavenCentral()
+          }
+          dependencies {
+              implementation("org.swift.swiftjava:swiftkit-core:$VERSION")
+              // Use the static-SDK linux classifier — it's the closest match for
+              // a generic GitHub Actions Linux runner.
+              runtimeOnly("org.swift.swiftjava:swiftkit-core-native:$VERSION:linux-x86_64")
+              implementation("org.swift.swiftjava:swiftkit-ffm:$VERSION")
+              runtimeOnly("org.swift.swiftjava:swiftkit-ffm-native:$VERSION:linux-x86_64")
+          }
+          EOF
+          gradle dependencies --configuration runtimeClasspath --refresh-dependencies

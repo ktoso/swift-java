@@ -12,10 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import java.util.*
-import java.io.*
-import kotlin.system.exitProcess
-import kotlinx.serialization.json.*
+import utilities.javaLibraryPaths
+import java.io.File
 
 plugins {
     java
@@ -31,82 +29,13 @@ repositories {
     mavenCentral()
 }
 
-fun getSwiftRuntimeLibraryPaths(): List<String> {
-    val process = ProcessBuilder("swiftc", "-print-target-info")
-        .redirectError(ProcessBuilder.Redirect.INHERIT)
-        .start()
-
-    val output = process.inputStream.bufferedReader().use { it.readText() }
-    val exitCode = process.waitFor()
-    if (exitCode != 0) {
-        System.err.println("Error executing swiftc -print-target-info")
-        exitProcess(exitCode)
-    }
-
-    val json = Json.parseToJsonElement(output)
-    val runtimeLibraryPaths = json.jsonObject["paths"]?.jsonObject?.get("runtimeLibraryPaths")?.jsonArray
-    return runtimeLibraryPaths?.map { it.jsonPrimitive.content } ?: emptyList()
-}
-
-/**
- * Find library paths for 'java.library.path' when running or testing projects inside this build.
- */
-// TODO: Deduplicate this code with javaLibraryPaths.kt
-fun javaLibraryPaths(rootDir: File): List<String> {
-    val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
-    val osArch = System.getProperty("os.arch")
-    val isLinux = osName.contains("linux")
-    val base = rootDir.path.let { "$it/" }
-
-    val projectBuildOutputPath =
-        if (isLinux) {
-            if (osArch == "amd64" || osArch == "x86_64")
-                "$base.build/x86_64-unknown-linux-gnu"
-            else
-                "$base.build/${osArch}-unknown-linux-gnu"
-        } else {
-            if (osArch == "aarch64")
-                "$base.build/arm64-apple-macosx"
-            else
-                "$base.build/${osArch}-apple-macosx"
-        }
-    val parentParentBuildOutputPath =
-        "../../$projectBuildOutputPath"
-
-
-    val swiftBuildOutputPaths = listOf(
-        projectBuildOutputPath,
-        parentParentBuildOutputPath
-    )
-
-    val debugBuildOutputPaths = swiftBuildOutputPaths.map { "$it/debug" }
-    val releaseBuildOutputPaths = swiftBuildOutputPaths.map { "$it/release" }
-
-    // swift-build layout (https://github.com/swiftlang/swift-build/issues/1363):
-    // .build/out/Products/<Config>[-<os>]/ — no triple, different config casing,
-    // OS suffix on Linux
-    val swiftBuildSystemConfigs = if (isLinux) {
-        listOf("Debug-linux", "Release-linux")
-    } else {
-        listOf("Debug", "Release")
-    }
-    val swiftBuildSystemRoots = listOf("$base.build/out/Products", "../../$base.build/out/Products")
-    val swiftBuildSystemPaths = swiftBuildSystemRoots.flatMap { root ->
-        swiftBuildSystemConfigs.map { config -> "$root/$config" }
-    }
-
-    val swiftRuntimePaths = getSwiftRuntimeLibraryPaths()
-
-    return debugBuildOutputPaths + releaseBuildOutputPaths + swiftBuildSystemPaths + swiftRuntimePaths
-}
-
 // Configure paths for native (Swift) libraries
 tasks.test {
     jvmArgs(
         "--enable-native-access=ALL-UNNAMED",
 
         // Include the library paths where our dylibs are that we want to load and call
-        "-Djava.library.path=" + javaLibraryPaths(project.projectDir).joinToString(File.pathSeparator)
+        "-Djava.library.path=" + project.javaLibraryPaths(project.projectDir).joinToString(File.pathSeparator)
     )
 }
 

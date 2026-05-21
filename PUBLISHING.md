@@ -5,6 +5,10 @@ This document explains how SwiftKit's Java libraries (`swiftkit-core`,
 Central, and how downstream Java/Gradle projects consume them — including
 unreleased SNAPSHOT builds from `main`.
 
+For maintainer setup (Sonatype namespace claim, GPG key generation, GitHub
+Secrets configuration) and the recurring release flow, see
+[`RELEASING.md`](./RELEASING.md).
+
 Publishing is driven by [JReleaser](https://jreleaser.org/) — the approach
 [Sonatype documents](https://central.sonatype.org/publish/publish-portal-gradle/)
 for the Central Portal — applied at the root of the Gradle build. Each module
@@ -152,11 +156,18 @@ Two GitHub Actions workflows handle publishing:
 
 Each workflow has three job groups:
 
-1. **`publish-java`** — single Linux container job. Runs `:SwiftKitCore:publish :SwiftKitFFM:publish` to stage to `build/staging-deploy/`, then `./gradlew jreleaserDeploy`. Publishes the classifier-less Java jars.
+1. **`publish-java`** — single Linux container job. Runs `:SwiftKitCore:publish :SwiftKitFFM:publish` to stage to `build/staging-deploy/`, then `./gradlew jreleaserDeploy`. Publishes the classifier-less Java jars. Verifies all required secrets up-front so missing credentials fail fast (within seconds).
 2. **`publish-natives-linux`** — 8-entry matrix; each entry runs `:SwiftKitCoreNative:publish :SwiftKitFFMNative:publish` with `-PnativeClassifier=<classifier>` (and `-PnativeBuildSdk=<sdk>` for the static-SDK variants), then `./gradlew jreleaserDeploy`.
 3. **`publish-natives-macos`** — single macOS arm64 job, mirrors the Linux pattern with classifier `osx-aarch_64`.
 
 All native jobs depend on `publish-java` succeeding. **Each matrix job creates its own Sonatype Central Portal deployment** — for releases this means ~10 deployments to click "Publish" on per release. Snapshot uploads are silent (no clicks needed).
+
+The snapshot workflow has a final **`smoke-test-snapshot`** job that depends on every publish job. It creates a throwaway Gradle project that depends on the just-published `-SNAPSHOT` artifacts and resolves the `runtimeClasspath` configuration. This catches POM/metadata mistakes that pass JReleaser validation but break downstream consumers — for example, if a classifier is mis-spelled or a dependency reference is wrong.
+
+The Swift toolchain version is parameterized in each workflow as a top-level
+`SWIFT_TOOLCHAIN_VERSION` env var; when bumping Swift, update that value
+**and** the matrix `swift:X.Y-*` container references (GitHub Actions does not
+expand env into matrix `include` containers).
 
 ## Required GitHub Actions secrets
 

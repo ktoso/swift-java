@@ -45,6 +45,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # Single source of truth for the Swift toolchain version used across all jobs.
+  # Bump this to upgrade Swift; ALSO update the matrix `swift:X.Y-*` container
+  # references and the `SWIFT_VERSION` value passed to install_swiftly.sh below
+  # (GitHub Actions doesn't expand env into matrix `include` containers).
+  SWIFT_TOOLCHAIN_VERSION: "6.3"
   JRELEASER_MAVENCENTRAL_USERNAME: ${{ secrets.JRELEASER_MAVENCENTRAL_USERNAME }}
   JRELEASER_MAVENCENTRAL_PASSWORD: ${{ secrets.JRELEASER_MAVENCENTRAL_PASSWORD }}
   JRELEASER_GPG_PUBLIC_KEY:        ${{ secrets.JRELEASER_GPG_PUBLIC_KEY }}
@@ -203,8 +208,9 @@ jobs:
         if: matrix.swift_sdk
         shell: bash
         run: |
-          # TODO: bump SWIFT_STATIC_SDK_URL when upgrading the Swift toolchain.
-          SWIFT_STATIC_SDK_URL="https://download.swift.org/swift-6.3-RELEASE/static-sdk/swift-6.3-RELEASE_static-linux-0.0.1/swift-6.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz"
+          # SDK URL is derived from SWIFT_TOOLCHAIN_VERSION at the top of this file.
+          VERSION="${SWIFT_TOOLCHAIN_VERSION}"
+          SWIFT_STATIC_SDK_URL="https://download.swift.org/swift-${VERSION}-RELEASE/static-sdk/swift-${VERSION}-RELEASE_static-linux-0.0.1/swift-${VERSION}-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz"
           swift sdk install "$SWIFT_STATIC_SDK_URL"
 
       - name: Stage ${{ matrix.classifier }} native jars
@@ -247,7 +253,7 @@ jobs:
       - name: Install Swift via Swiftly
         run: ./.github/scripts/install_swiftly.sh
         env:
-          SWIFT_VERSION: "6.3"
+          SWIFT_VERSION: ${{ env.SWIFT_TOOLCHAIN_VERSION }}
 
       - name: Set up JDK
         uses: actions/setup-java@v4
