@@ -45,7 +45,13 @@ public enum KnownJavaAnnotation: String {
   /// this known annotation.
   func matches(fullyQualifiedName fqn: String) -> Bool {
     if matchesBySimpleName {
-      return fqn.splitSwiftTypeName().name == rawValue
+      let simpleName: String
+      if let lastDot = fqn.lastIndex(of: ".") {
+        simpleName = String(fqn.suffix(from: fqn.index(after: lastDot)))
+      } else {
+        simpleName = fqn
+      }
+      return simpleName == rawValue
     }
     return fqn == rawValue
   }

@@ -318,6 +318,7 @@ let package = Package(
         "JavaNet",
         "SwiftJavaShared",
         "SwiftJavaConfigurationShared",
+        "SwiftExtract",
         "CodePrinting",
         .product(name: "Subprocess", package: "swift-subprocess"),
       ],
@@ -458,6 +459,7 @@ let package = Package(
       dependencies: [
         "SwiftJavaToolLib",
         "SwiftJavaConfigurationShared",
+        "SwiftExtract",
       ],
       exclude: [
         "SimpleJavaProject"

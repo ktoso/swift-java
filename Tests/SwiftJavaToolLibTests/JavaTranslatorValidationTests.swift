@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SwiftExtract
 import SwiftJavaConfigurationShared
 import SwiftJavaToolLib
 import XCTest
@@ -24,10 +25,10 @@ final class JavaTranslatorValidationTests: XCTestCase {
       environment: jvm.environment()
     )
     translator.translatedClasses = [
-      "TestClass": SwiftTypeName(module: "Module1", name: "Class1"),
-      "TestClass2": SwiftTypeName(module: "Module2", name: "Class1"),
-      "TestClass3": SwiftTypeName(module: "Module1", name: "Class1"),
-      "TestClass4": SwiftTypeName(module: nil, name: "Class1"),
+      "TestClass": SwiftQualifiedTypeName(module: "Module1", name: "Class1"),
+      "TestClass2": SwiftQualifiedTypeName(module: "Module2", name: "Class1"),
+      "TestClass3": SwiftQualifiedTypeName(module: "Module1", name: "Class1"),
+      "TestClass4": SwiftQualifiedTypeName(module: nil, name: "Class1"),
     ]
 
     XCTAssertThrowsError(try translator.validateClassConfiguration()) { error in
@@ -39,7 +40,7 @@ final class JavaTranslatorValidationTests: XCTestCase {
           swiftToJavaMapping,
           [
             JavaTranslator.SwiftToJavaMapping(
-              swiftType: .init(module: "Module1", name: "Class1"),
+              swiftType: SwiftQualifiedTypeName(module: "Module1", name: "Class1"),
               javaTypes: ["TestClass", "TestClass3"]
             )
           ]

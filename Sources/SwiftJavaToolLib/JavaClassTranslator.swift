@@ -15,6 +15,7 @@
 import JavaLangReflect
 import Logging
 import OrderedCollections
+import SwiftExtract
 import SwiftJava
 import SwiftJavaConfigurationShared
 import SwiftSyntax
@@ -26,7 +27,7 @@ struct JavaClassTranslator {
   /// needed for translation.
   let translator: JavaTranslator
 
-  var log: Logger {
+  var log: Logging.Logger {
     translator.log
   }
 
@@ -47,7 +48,7 @@ struct JavaClassTranslator {
 
   /// The full name of the Swift type that will be generated for this Java
   /// class.
-  let swiftTypeName: String
+  let swiftTypeName: SwiftQualifiedTypeName
 
   /// The effective Java superclass object, which is the nearest
   /// superclass that has been mapped into Swift.
@@ -104,12 +105,12 @@ struct JavaClassTranslator {
 
   /// The name of the enclosing Swift type, if there is one.
   var swiftParentType: String? {
-    swiftTypeName.splitSwiftTypeName().parentType
+    swiftTypeName.qualified.isEmpty ? nil : swiftTypeName.qualified.joined(separator: ".")
   }
 
   /// The name of the innermost Swift type, without the enclosing type.
   var swiftInnermostTypeName: String {
-    swiftTypeName.splitSwiftTypeName().name
+    swiftTypeName.name
   }
 
   /// Prepare translation for the given Java class (or interface).
@@ -118,10 +119,9 @@ struct JavaClassTranslator {
     self.javaClass = javaClass
     self.translator = translator
     self.translateAsClass = translator.translateAsClass && !javaClass.isInterface()
-    let swiftTypeName = try translator.getSwiftTypeNameFromJavaClassName(
-      fullName,
-      preferValueTypes: false,
-      escapeMemberNames: false
+    let swiftTypeName = try translator.getSwiftQualifiedTypeName(
+      fromJavaClassName: fullName,
+      preferValueTypes: false
     )
     self.swiftTypeName = swiftTypeName
 
@@ -146,14 +146,14 @@ struct JavaClassTranslator {
       var swiftSuperclassTypeArgs: [String]? = nil
       while let javaSuperclassNonOpt = javaSuperclass {
         do {
-          swiftSuperclassName = try translator.getSwiftTypeName(javaSuperclassNonOpt, preferValueTypes: false).swiftName
+          swiftSuperclassName = try translator.getSwiftTypeName(javaSuperclassNonOpt, preferValueTypes: false).qualified.qualifiedNameEscaped
           swiftSuperclassTypeArgs = try javaGenericSuperclass?.as(ParameterizedType.self)?.getActualTypeArguments()
             .compactMap { typeArg in
               guard let typeArg else { return nil }
 
               // When forwarding generics to the superclass
               if javaTypeParameters.contains(where: { $0.getName() == typeArg.getTypeName() }) {
-                return "\(swiftTypeName.splitSwiftTypeName().name)_\(typeArg.getTypeName())"
+                return "\(swiftTypeName.name)_\(typeArg.getTypeName())"
               }
 
               return try translator.getSwiftTypeNameAsString(
@@ -282,7 +282,6 @@ struct JavaClassTranslator {
   }
 }
 
-/// MARK: Collection of Java class members.
 extension JavaClassTranslator {
 
   /// Determines whether a method should be extracted for translation.
@@ -536,7 +535,7 @@ extension JavaClassTranslator {
       }
 
       let genericArgumentClause = "<\(genericParameterNames.joined(separator: ", "))>"
-      staticMemberWhereClause = " where ObjectType == \(swiftTypeName)\(genericArgumentClause)" // FIXME: move the 'where ...' part into the render bit
+      staticMemberWhereClause = " where ObjectType == \(swiftTypeName.qualifiedNameEscaped)\(genericArgumentClause)" // FIXME: move the 'where ...' part into the render bit
     } else {
       staticMemberWhereClause = ""
     }
@@ -581,7 +580,7 @@ extension JavaClassTranslator {
     // Specify the specialization arguments when needed.
     let extSpecialization: String
     if javaTypeParameters.isEmpty {
-      extSpecialization = "<\(swiftTypeName)>"
+      extSpecialization = "<\(swiftTypeName.qualifiedNameEscaped)>"
     } else {
       extSpecialization = ""
     }
@@ -622,13 +621,13 @@ extension JavaClassTranslator {
 
     let protocolDecl: DeclSyntax =
       """
-      /// Describes the Java `native` methods for ``\(raw: swiftTypeName)``.
+      /// Describes the Java `native` methods for ``\(raw: swiftTypeName.fullName)``.
       ///
-      /// To implement all of the `native` methods for \(raw: swiftTypeName) in Swift,
-      /// extend \(raw: swiftTypeName) to conform to this protocol and mark
+      /// To implement all of the `native` methods for \(raw: swiftTypeName.fullName) in Swift,
+      /// extend \(raw: swiftTypeName.fullName) to conform to this protocol and mark
       /// each implementation of the protocol requirement with
       /// `@JavaMethod`.
-      protocol \(raw: swiftTypeName)NativeMethods {
+      protocol \(raw: swiftTypeName.fullName)NativeMethods {
         \(raw: nativeMembers.map { $0.description }.joined(separator: "\n\n"))
       }
       """
@@ -644,14 +643,14 @@ extension JavaClassTranslator {
       if annotationClass.isKnown(.threadSafe) || annotationClass.isKnown(.immutable) {
         extensions.append(
           """
-          extension \(raw: swiftTypeName): @unchecked Swift.Sendable { }
+          extension \(raw: swiftTypeName.qualifiedNameEscaped): @unchecked Swift.Sendable { }
           """
         )
       } else if annotationClass.isKnown(.notThreadSafe) {
         extensions.append(
           """
           \(raw: SwiftAttribute.unavailable.render())
-          extension \(raw: swiftTypeName): Swift.Sendable { }
+          extension \(raw: swiftTypeName.qualifiedNameEscaped): Swift.Sendable { }
           """
         )
       }

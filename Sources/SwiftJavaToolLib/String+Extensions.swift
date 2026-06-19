@@ -14,18 +14,6 @@
 import SwiftParser
 
 extension String {
-  /// Split the Swift type name into parent type + innermost type name.
-  func splitSwiftTypeName() -> (parentType: String?, name: String) {
-    guard let lastDot = lastIndex(of: ".") else {
-      return (parentType: nil, name: self)
-    }
-
-    return (
-      parentType: String(self[startIndex..<lastDot]),
-      name: String(suffix(from: index(after: lastDot)))
-    )
-  }
-
   /// Escape a name with backticks if it's a Swift keyword.
   var escapedSwiftName: (swiftName: String, escaped: Bool) {
     var escaped = false
