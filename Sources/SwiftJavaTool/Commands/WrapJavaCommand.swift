@@ -16,6 +16,7 @@ import ArgumentParser
 import Foundation
 import JavaUtilJar
 import Logging
+import SwiftExtract
 import SwiftJava
 import SwiftJavaConfigurationShared
 import SwiftJavaToolLib
@@ -229,7 +230,7 @@ extension SwiftJava.WrapJavaCommand {
       // The current top-level class we're in.
       let currentClass = allClassesToVisit[currentClassIndex]
       let currentClassName = currentClass.getName()
-      guard let currentSwiftName = translator.translatedClasses[currentClass.getName()]?.swiftType else {
+      guard let currentSwiftName = translator.translatedClasses[currentClass.getName()]?.fullName else {
         continue
       }
 
@@ -280,7 +281,7 @@ extension SwiftJava.WrapJavaCommand {
           .defaultSwiftNameForJavaClass
 
         let swiftName = "\(currentSwiftName).\(swiftUnqualifiedName)"
-        let translatedSwiftName = SwiftTypeName(module: nil, name: swiftName)
+        let translatedSwiftName = SwiftQualifiedTypeName(parsing: swiftName)
         translator.translatedClasses[javaClassName] = translatedSwiftName
         log.debug("Record translated Java class '\(javaClassName)' -> \(translatedSwiftName)")
         return nestedClass
@@ -343,7 +344,7 @@ extension SwiftJava.WrapJavaCommand {
 
         let swiftFileName =
           try translator.getSwiftTypeName(javaClass, preferValueTypes: false)
-          .swiftName.replacing(".", with: "+") + ".swift"
+          .qualified.fullName.replacing(".", with: "+") + ".swift"
         try writeContents(
           swiftFileText,
           outputDirectory: generatedFileOutputDir,

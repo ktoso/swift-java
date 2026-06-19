@@ -183,7 +183,7 @@ public class SwiftNominalTypeDeclaration: SwiftTypeDeclaration {
   /// Structured qualified type name built from the parent chain
   public var qualifiedTypeName: SwiftQualifiedTypeName {
     if let parent = self.parent {
-      return SwiftQualifiedTypeName(parent.qualifiedTypeName.components + [name])
+      return parent.qualifiedTypeName.makeChildType(named: name)
     } else {
       return SwiftQualifiedTypeName(name)
     }

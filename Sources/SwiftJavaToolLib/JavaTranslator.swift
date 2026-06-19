@@ -16,6 +16,7 @@ import Foundation
 import JavaLangReflect
 import Logging
 import SwiftBasicFormat
+import SwiftExtract
 import SwiftJava
 import SwiftJavaConfigurationShared
 import SwiftJavaJNICore
@@ -27,7 +28,7 @@ import SwiftSyntaxBuilder
 package class JavaTranslator {
   let config: Configuration
 
-  let log: Logger
+  let log: Logging.Logger
 
   /// The name of the Swift module that we are translating into.
   let swiftModuleName: String
@@ -41,9 +42,9 @@ package class JavaTranslator {
 
   /// A mapping from the name of each known Java class to the corresponding
   /// Swift type name and its Swift module.
-  package var translatedClasses: [JavaFullyQualifiedTypeName: SwiftTypeName] = [
-    "java.lang.Object": SwiftTypeName(module: "SwiftJava", name: "JavaObject"),
-    "byte[]": SwiftTypeName(module: nil, name: "[UInt8]"),
+  package var translatedClasses: [JavaFullyQualifiedTypeName: SwiftQualifiedTypeName] = [
+    "java.lang.Object": SwiftQualifiedTypeName(module: "SwiftJava", name: "JavaObject"),
+    "byte[]": SwiftQualifiedTypeName(name: "[UInt8]"),
   ]
 
   /// A mapping from the name of each known Java class with the Swift value type
@@ -53,8 +54,8 @@ package class JavaTranslator {
   /// `translatedClasses` should map to a representation of the Java class (i.e.,
   /// an AnyJavaObject-conforming type) whereas the entry here should map to
   /// a value type.
-  package let translatedToValueTypes: [JavaFullyQualifiedTypeName: SwiftTypeName] = [
-    "java.lang.String": SwiftTypeName(module: "SwiftJava", name: "String")
+  package let translatedToValueTypes: [JavaFullyQualifiedTypeName: SwiftQualifiedTypeName] = [
+    "java.lang.String": SwiftQualifiedTypeName(module: "SwiftJava", name: "String")
   ]
 
   /// The set of Swift modules that need to be imported to make the generated
@@ -90,7 +91,7 @@ package class JavaTranslator {
     self.translateAsClass = translateAsClass
     self.format = format
 
-    var l = Logger(label: "swift-java")
+    var l = Logging.Logger(label: "swift-java")
     l.logLevel = .init(rawValue: (config.logLevel ?? .info).rawValue)!
     self.log = l
   }
@@ -207,7 +208,7 @@ extension JavaTranslator {
         preferValueTypes: false
       )
 
-      return outerOptional.adjustTypeName(swiftName)
+      return outerOptional.adjustTypeName(swiftName.qualifiedNameEscaped)
     }
 
     // Handle parameterized types by recursing on the raw type and the type
@@ -242,7 +243,7 @@ extension JavaTranslator {
               eraseTypeArguments: eraseTypeArguments,
               eraseRawOwnerTypeArguments: ownerType.is(JavaClass<JavaObject>.self)
             )
-          rawSwiftType = "\(ownerSwiftType).\(rawSwiftType.splitSwiftTypeName().name)"
+          rawSwiftType = "\(ownerSwiftType).\(rawSwiftType.lastDottedComponent)"
         }
 
         let typeArguments: [String] = try parameterizedType.getActualTypeArguments().compactMap { typeArg in
@@ -288,7 +289,8 @@ extension JavaTranslator {
       throw TranslationError.unhandledJavaType(javaType)
     }
 
-    var (swiftName, isOptional) = try getSwiftTypeName(javaClass, preferValueTypes: preferValueTypes)
+    let (qualifiedName, isOptional) = try getSwiftTypeName(javaClass, preferValueTypes: preferValueTypes)
+    var swiftName: String
     if eraseRawOwnerTypeArguments, let declaringClass = javaClass.getDeclaringClass() {
       let ownerSwiftType = try getSwiftTypeNameAsString(
         declaringClass.as(Type.self),
@@ -298,7 +300,9 @@ extension JavaTranslator {
         eraseTypeArguments: eraseTypeArguments,
         eraseRawOwnerTypeArguments: true
       )
-      swiftName = "\(ownerSwiftType).\(swiftName.splitSwiftTypeName().name)"
+      swiftName = "\(ownerSwiftType).\(qualifiedName.name)"
+    } else {
+      swiftName = qualifiedName.qualifiedNameEscaped
     }
 
     if eraseTypeArguments || eraseRawOwnerTypeArguments {
@@ -320,52 +324,47 @@ extension JavaTranslator {
   package func getSwiftTypeName(
     _ javaClass: JavaClass<JavaObject>,
     preferValueTypes: Bool
-  ) throws -> (swiftName: String, isOptional: Bool) {
+  ) throws -> (qualified: SwiftQualifiedTypeName, isOptional: Bool) {
     let javaType = try JavaType(javaTypeName: javaClass.getName())
     let isSwiftOptional = javaType.isSwiftOptional(stringIsValueType: preferValueTypes)
 
-    let swiftTypeName: String
+    let qualified: SwiftQualifiedTypeName
     if !preferValueTypes, case .array(_) = javaType {
-      swiftTypeName = try self.getSwiftTypeNameFromJavaClassName("java.lang.reflect.Array", preferValueTypes: false)
+      qualified = try self.getSwiftQualifiedTypeName(fromJavaClassName: "java.lang.reflect.Array", preferValueTypes: false)
     } else {
-      swiftTypeName = try javaType.swiftTypeName { javaClassName in
-        try self.getSwiftTypeNameFromJavaClassName(javaClassName, preferValueTypes: preferValueTypes)
+      // The JavaType.swiftTypeName resolver expects a (String) -> String closure
+      // (it composes optionals/arrays). For class types it returns a single
+      // dotted spelling, which we re-parse into a structured value.
+      let rendered = try javaType.swiftTypeName { javaClassName in
+        try self.getSwiftQualifiedTypeName(fromJavaClassName: javaClassName, preferValueTypes: preferValueTypes).qualifiedNameEscaped
       }
+      qualified = SwiftQualifiedTypeName(parsing: rendered)
     }
 
-    return (swiftTypeName, isSwiftOptional)
+    return (qualified, isSwiftOptional)
   }
 
-  /// Map a Java class name to its corresponding Swift type.
-  func getSwiftTypeNameFromJavaClassName(
-    _ name: String,
-    preferValueTypes: Bool,
-    escapeMemberNames: Bool = true
-  ) throws -> String {
-    // If we want a value type, look for one.
+  /// Map a Java class name to its corresponding structured Swift type name.
+  /// Records any cross-module imports as a side effect.
+  func getSwiftQualifiedTypeName(
+    fromJavaClassName name: String,
+    preferValueTypes: Bool
+  ) throws -> SwiftQualifiedTypeName {
     if preferValueTypes, let translatedValueType = translatedToValueTypes[name] {
-      // Note that we need to import this Swift module.
-      if translatedValueType.swiftModule != swiftModuleName {
-        guard let module = translatedValueType.swiftModule else {
+      if translatedValueType.module != swiftModuleName {
+        guard let module = translatedValueType.module else {
           preconditionFailure("Translated value type must have Swift module, but was nil! Type: \(translatedValueType)")
         }
         importedSwiftModules.insert(module)
       }
-
-      return translatedValueType.swiftType
+      return translatedValueType
     }
 
     if let translated = translatedClasses[name] {
-      // Note that we need to import this Swift module.
-      if let swiftModule = translated.swiftModule, swiftModule != swiftModuleName {
+      if let swiftModule = translated.module, swiftModule != swiftModuleName {
         importedSwiftModules.insert(swiftModule)
       }
-
-      if escapeMemberNames {
-        return translated.swiftType.escapingSwiftMemberNames
-      }
-
-      return translated.swiftType
+      return translated
     }
 
     throw TranslationError.untranslatedJavaClass(name)
@@ -383,28 +382,12 @@ extension JavaTranslator {
 }
 
 extension String {
-  /// Escape Swift types that involve member name references like '.Type'
-  fileprivate var escapingSwiftMemberNames: String {
-    var count = 0
-    return split(separator: ".").map { component in
-      defer {
-        count += 1
-      }
-
-      if count > 0 && component.memberRequiresBackticks {
-        return "`\(component)`"
-      }
-
-      return String(component)
-    }.joined(separator: ".")
-  }
-}
-
-extension Substring {
-  fileprivate var memberRequiresBackticks: Bool {
-    switch self {
-    case "Type": return true
-    default: return false
+  /// Last `.`-separated component of a rendered Swift type spelling, or the
+  /// whole string if there is no `.`.
+  fileprivate var lastDottedComponent: String {
+    guard let lastDot = lastIndex(of: ".") else {
+      return self
     }
+    return String(suffix(from: index(after: lastDot)))
   }
 }

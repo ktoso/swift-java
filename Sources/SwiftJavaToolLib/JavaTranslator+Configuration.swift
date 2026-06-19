@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SwiftExtract
 import SwiftJavaConfigurationShared
 
 extension JavaTranslator {
@@ -25,7 +26,7 @@ extension JavaTranslator {
     }
 
     for (javaClassName, swiftName) in classes {
-      translatedClasses[javaClassName] = SwiftTypeName(module: swiftModule, name: swiftName)
+      translatedClasses[javaClassName] = SwiftQualifiedTypeName(parsing: swiftName, module: swiftModule)
     }
   }
 }

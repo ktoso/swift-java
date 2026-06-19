@@ -12,41 +12,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SwiftExtract
+
 public typealias JavaFullyQualifiedTypeName = String
-
-package struct SwiftTypeName: Hashable, CustomStringConvertible {
-  package let swiftModule: String?
-  package let swiftType: String
-
-  package init(module: String?, name: String) {
-    self.swiftModule = module
-    self.swiftType = name
-  }
-
-  package var qualifiedName: String {
-    if let swiftModule {
-      "\(swiftModule).\(swiftType)"
-    } else {
-      "\(swiftType)"
-    }
-  }
-
-  package var description: String {
-    if let swiftModule {
-      "`\(swiftModule)/\(swiftType)`"
-    } else {
-      "`\(swiftType)`"
-    }
-  }
-}
 
 extension JavaTranslator {
 
   package struct SwiftToJavaMapping: Equatable {
-    let swiftType: SwiftTypeName
+    let swiftType: SwiftQualifiedTypeName
     let javaTypes: [JavaFullyQualifiedTypeName]
 
-    package init(swiftType: SwiftTypeName, javaTypes: [JavaFullyQualifiedTypeName]) {
+    package init(swiftType: SwiftQualifiedTypeName, javaTypes: [JavaFullyQualifiedTypeName]) {
       self.swiftType = swiftType
       self.javaTypes = javaTypes
     }
@@ -68,23 +44,22 @@ extension JavaTranslator {
     private func mappingDescription(mapping: SwiftToJavaMapping) -> String {
       let javaTypes = mapping.javaTypes.map { "'\($0)'" }.joined(separator: ", ")
       return
-        "Swift module: '\(mapping.swiftType.swiftModule ?? "")', type: '\(mapping.swiftType.swiftType)', Java Types: \(javaTypes)"
+        "Swift module: '\(mapping.swiftType.module ?? "")', type: '\(mapping.swiftType.fullName)', Java Types: \(javaTypes)"
 
     }
   }
   package func validateClassConfiguration() throws(ValidationError) {
     // Group all classes by swift name
-    let groupedDictionary: [SwiftTypeName: [(JavaFullyQualifiedTypeName, SwiftTypeName)]] = Dictionary(
+    let groupedDictionary: [SwiftQualifiedTypeName: [(JavaFullyQualifiedTypeName, SwiftQualifiedTypeName)]] = Dictionary(
       grouping: translatedClasses,
       by: {
-        // SwiftTypeName(swiftType: $0.value.swiftType, swiftModule: $0.value.swiftModule)
         $0.value
       }
     )
     // Find all that are mapped to multiple names
-    let multipleClassesMappedToSameName: [SwiftTypeName: [(JavaFullyQualifiedTypeName, SwiftTypeName)]] =
+    let multipleClassesMappedToSameName: [SwiftQualifiedTypeName: [(JavaFullyQualifiedTypeName, SwiftQualifiedTypeName)]] =
       groupedDictionary.filter {
-        (key: SwiftTypeName, value: [(JavaFullyQualifiedTypeName, SwiftTypeName)]) in
+        (key: SwiftQualifiedTypeName, value: [(JavaFullyQualifiedTypeName, SwiftQualifiedTypeName)]) in
         value.count > 1
       }
 
