@@ -394,13 +394,18 @@ extension SwiftType {
         }
       }
 
+      // SE-0491: a leading `Module::` selector forces a module-qualified
+      // top-level lookup against the named module
+      let moduleQualifier = identifierType.moduleSelector?.moduleName.text
+
       // Resolve the type by name.
       self = try SwiftType(
         originalType: type,
         parent: nil,
         name: identifierType.name,
         genericArguments: genericArgs ?? [],
-        lookupContext: lookupContext
+        lookupContext: lookupContext,
+        module: moduleQualifier
       )
 
     case .implicitlyUnwrappedOptionalType(let optionalType):
