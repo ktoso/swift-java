@@ -216,10 +216,11 @@ extension JNISwift2JavaGenerator {
     }
   }
 
-  /// Prints the full `.java` file for a protocol's existential box — the
+  /// Prints the full `.java` file for a protocol's existential box - the
   /// class used to represent a value returned as `any P` / `some P` from an
   /// extracted Swift function.
   private func printExistentialBoxFile(_ printer: inout JavaPrinter, _ decl: ExtractedNominalType) {
+    assert(decl.swiftNominal.kind == .protocol, "Expected protocol, got \(decl.swiftNominal.kind): \(decl.qualifiedName)")
     printHeader(&printer)
     printPackage(&printer)
     printImports(&printer)
@@ -291,7 +292,7 @@ extension JNISwift2JavaGenerator {
   /// parameter/result shape, but the translation is *not* cached via
   /// `translatedDecl(for:)` (that cache is keyed by the protocol method decl
   /// and is shared with the plain `interface P` printing, which never prints
-  /// a body) — and `parentName` is overridden to the box's own name so the
+  /// a body). `parentName` is overridden to the box's own name so the
   /// native downcall target and JNI symbol are unique to the box, not the
   /// interface.
   private func printExistentialBoxMethod(
@@ -446,7 +447,7 @@ extension JNISwift2JavaGenerator {
   /// stores each pointer, creates the cleanup, and registers with the arena.
   private func printDesignatedConstructor(
     _ printer: inout JavaPrinter,
-    javaName: String,
+    javaName: JavaClassName,
     pointerParams: [String],
   ) {
     printer.print(
@@ -485,7 +486,7 @@ extension JNISwift2JavaGenerator {
   /// between callers (a box also carries type metadata), so it is passed in verbatim.
   private func printWrapMemoryAddressUnsafeFactory(
     _ printer: inout JavaPrinter,
-    javaName: String,
+    javaName: JavaClassName,
     genericClause: String,
     pointerParams: [String],
     docSummary: String,

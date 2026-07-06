@@ -172,8 +172,8 @@ extension JNISwift2JavaGenerator {
   }
 
   /// All wrappable requirements for `type` (a protocol), including those
-  /// inherited from refined protocols — the transitive closure of
-  /// `supportedProtocolRequirements(of:)`. Used to build an existential
+  /// inherited from refined protocols (the transitive closure of
+  /// `supportedProtocolRequirements(of:)`). Used to build an existential
   /// box's method bodies and per-requirement `@_cdecl` dispatch thunks,
   /// since the box must implement everything the protocol (directly or
   /// transitively) requires.
