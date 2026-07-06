@@ -216,12 +216,11 @@ extension JNISwift2JavaGenerator {
     }
   }
 
-  /// Prints the full `.java` file for a protocol's existential box — the
+  /// Prints the full `.java` file for a protocol's existential box - the
   /// class used to represent a value returned as `any P` / `some P` from an
   /// extracted Swift function.
   private func printExistentialBoxFile(_ printer: inout JavaPrinter, _ decl: ExtractedNominalType) {
-    assert(decl.swiftNominal.kind == .protocol, "printExistentialBoxFile must only be called for a protocol, but was called with: \(decl)")
-
+    assert(decl.swiftNominal.kind == .protocol, "Expected protocol, got \(decl.swiftNominal.kind): \(decl.qualifiedName)")
     printHeader(&printer)
     printPackage(&printer)
     printImports(&printer)
@@ -289,6 +288,13 @@ extension JNISwift2JavaGenerator {
   }
 
   /// Prints one existential box method.
+  /// Reuses `javaTranslator.translate(_:)` for the
+  /// parameter/result shape, but the translation is *not* cached via
+  /// `translatedDecl(for:)` (that cache is keyed by the protocol method decl
+  /// and is shared with the plain `interface P` printing, which never prints
+  /// a body). `parentName` is overridden to the box's own name so the
+  /// native downcall target and JNI symbol are unique to the box, not the
+  /// interface.
   private func printExistentialBoxMethod(
     _ printer: inout JavaPrinter,
     _ decl: ExtractedNominalType,
@@ -438,7 +444,7 @@ extension JNISwift2JavaGenerator {
   /// Prints the designated (memory-managed) constructor shared by every `JNISwiftInstance`
   private func printDesignatedConstructor(
     _ printer: inout JavaPrinter,
-    javaName: String,
+    javaName: JavaClassName,
     pointerParams: [String],
   ) {
     printer.print(

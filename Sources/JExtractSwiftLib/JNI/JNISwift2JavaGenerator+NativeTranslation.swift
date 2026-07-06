@@ -1357,6 +1357,12 @@ extension JNISwift2JavaGenerator {
       outArgumentName: String
     )
 
+    /// Writes a boxed existential's `(pointerBits, metadataPointerBits)`
+    /// pair (as produced by `allocateExistentialValue`) into the
+    /// `_OutSwiftGenericInstance` out-object's `selfPointer` /
+    /// `selfTypePointer` fields. Structurally identical to
+    /// `genericValueIndirectReturn`'s `SetLongField` shape, but the metadata
+    /// comes from the opened existential's dynamic type, not a static type.
     indirect case existentialValueIndirectReturn(
       NativeSwiftConversionStep,
       outArgumentName: String
@@ -1588,7 +1594,7 @@ extension JNISwift2JavaGenerator {
         let boxedName = "\(name)Boxed$"
 
         // Bind at existential type first: for `some P` the static result type
-        // is the opaque type, not `(any P)` — binding here erases it to the
+        // is the opaque type, not `(any P)`. Binding here erases it to the
         // existential so the boxing helper below can open it uniformly.
         printer.print("let \(existentialName): \(existentialType) = \(inner)")
 
