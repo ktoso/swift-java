@@ -160,3 +160,26 @@ extension AnyJavaObject {
     }
   }
 }
+
+// ==== -----------------------------------------------------------------------
+// MARK: JNI conversions for non-optional Java objects
+
+extension AnyJavaObject {
+  /// Retrieve the underlying JNI reference for this Java object.
+  ///
+  /// Unlike `Optional`, a non-optional wrapped Java object is guaranteed to be
+  /// non-`null`, so we can return the underlying reference directly
+  public func getJNIValue(in environment: JNIEnvironment) -> jobject {
+    self.javaThis
+  }
+
+  /// Return a fresh local reference safe for returning from a JNI thunk.
+  ///
+  /// See ``Swift/Optional/getJNILocalRefValue(in:)`` for why a new local ref is
+  /// needed: the Swift `JavaObjectHolder` holding the global reference may be
+  /// destroyed before the JVM reads the returned reference, so we create a
+  /// local ref that survives the return
+  public func getJNILocalRefValue(in environment: JNIEnvironment) -> jobject? {
+    environment.interface.NewLocalRef(environment, self.javaThis)
+  }
+}
