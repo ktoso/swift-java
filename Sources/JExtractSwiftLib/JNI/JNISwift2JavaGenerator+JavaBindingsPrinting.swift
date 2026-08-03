@@ -590,10 +590,12 @@ extension JNISwift2JavaGenerator {
     }
     modifiers.append("final")
     var implements = ["JNISwiftInstance"]
-    implements += decl.inheritedTypes
-      .compactMap(\.asNominalTypeDeclaration)
-      .filter { $0.kind == .protocol }
-      .map(\.name)
+    // Only protocols that were actually extracted have a generated Java interface to
+    // implement. A protocol can resolve here yet be absent from `extractedTypes` because
+    // a glob filter or the access-level threshold dropped it, and naming it in the
+    // `implements` clause would reference a Java type that was never emitted.
+    // `inheritedProtocols(of:)` applies that membership check
+    implements += self.inheritedProtocols(of: decl).map(\.effectiveJavaSimpleName)
     let implementsClause = implements.joined(separator: .comma)
     // Specialized types are concrete — no generic clause on the Java side
     let genericClause = decl.javaGenericClause

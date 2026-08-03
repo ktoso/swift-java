@@ -642,4 +642,48 @@ struct JNIProtocolTests {
       ]
     )
   }
+
+  // ==== -----------------------------------------------------------------------
+  // MARK: Unextracted protocols must not reach the `implements` clause
+
+  /// A protocol can resolve on the Swift side yet never be extracted, because a glob
+  /// filter or the access-level threshold dropped it. Naming it in a conformer's
+  /// `implements` clause would reference a Java interface that was never emitted, so the
+  /// generated Java would not compile
+  @Test
+  func excludedProtocolIsOmittedFromImplementsClause() throws {
+    let source = """
+      public protocol VisibleProtocol {
+        public func visibleMethod()
+      }
+
+      public protocol HiddenProtocol {
+        public func hiddenMethod()
+      }
+
+      public class Conformer: VisibleProtocol, HiddenProtocol {
+        public func visibleMethod() {}
+        public func hiddenMethod() {}
+      }
+      """
+
+    var filtered = config
+    filtered.swiftFilterExclude = ["HiddenProtocol"]
+
+    try assertOutput(
+      input: source,
+      config: filtered,
+      .jni,
+      .java,
+      detectChunkByInitialLines: 1,
+      expectedChunks: [
+        """
+        public final class Conformer implements JNISwiftInstance, VisibleProtocol {
+        """
+      ],
+      notExpectedChunks: [
+        "HiddenProtocol"
+      ]
+    )
+  }
 }
