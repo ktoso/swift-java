@@ -133,7 +133,35 @@ final class SwiftAnalysisVisitor {
       // 'extension' in a nominal type is invalid. Ignore
       return
     }
-    guard let extractedNominalType = analyzer.extractedNominalType(node.extendedType) else {
+
+    let extractedNominalType: ExtractedNominalType
+    switch analyzer.resolveExtendedType(node.extendedType) {
+    case .extractable(let extracted):
+      extractedNominalType = extracted
+
+    case .crossModule(let foreignDecl):
+      // These sources cannot declare a nominal owned by another module, so this
+      // extension is the only place they can say anything about it. Record what it
+      // says instead of discarding it. Nothing is registered in `extractedTypes`, so
+      // the type does not become an emission target
+      recordCrossModuleExtension(node, extending: foreignDecl, sourceFilePath: sourceFilePath)
+      return
+
+    case .rejected:
+      // Owned, but filtered out by config or access level. Honor that
+      return
+
+    case .unresolved:
+      log.debug(
+        "Skip importing extension of '\(node.extendedType.trimmedDescription)'; extended type did not resolve"
+      )
+      analyzer.crossModuleExtensions.record(
+        unresolved: UnresolvedExtension(
+          extendedTypeDescription: node.extendedType.trimmedDescription,
+          syntax: node,
+          sourceFilePath: sourceFilePath,
+        )
+      )
       return
     }
 
@@ -185,6 +213,128 @@ final class SwiftAnalysisVisitor {
         self.visit(decl: memberItem.decl, in: specialized, sourceFilePath: sourceFilePath)
       }
     }
+  }
+
+  // ==== -----------------------------------------------------------------------
+  // MARK: Cross-module extensions
+
+  /// Record an extension on a nominal owned by another module.
+  ///
+  /// Runs before any `where`-clause handling, so a conditional conformance is recorded
+  /// with its requirements attached rather than dropped by a parser that cannot model
+  /// some requirement shape
+  private func recordCrossModuleExtension(
+    _ node: ExtensionDeclSyntax,
+    extending foreignDecl: SwiftNominalTypeDeclaration,
+    sourceFilePath: String,
+  ) {
+    let addedConformances =
+      node.inheritanceClause?.inheritedTypes.compactMap {
+        try? SwiftType($0.type, lookupContext: analyzer.lookupContext)
+      } ?? []
+    let (requirements, hasUnrepresentable) = resolveExtensionRequirements(node.genericWhereClause)
+
+    log.debug(
+      "Record cross-module extension of '\(foreignDecl.moduleName).\(foreignDecl.qualifiedName)'"
+        + " adding [\(addedConformances.map(\.description).joined(separator: ", "))]"
+    )
+
+    analyzer.crossModuleExtensions.record(
+      CrossModuleExtension(
+        extendedType: SwiftNominalIdentity(foreignDecl),
+        syntax: node,
+        addedConformances: addedConformances,
+        members: captureCrossModuleMembers(of: node, extending: foreignDecl, sourceFilePath: sourceFilePath),
+        requirements: requirements,
+        hasUnrepresentableRequirements: hasUnrepresentable,
+        attributes: node.attributes,
+        sourceFilePath: sourceFilePath,
+      )
+    )
+  }
+
+  /// Collect the members a cross-module extension contributes, by running the normal
+  /// member visitor against a scratch record that is never registered in `extractedTypes`.
+  ///
+  /// Nested nominal declarations are skipped. A type declared inside an extension of a
+  /// foreign type is itself owned by these sources, so visiting it would register it and
+  /// make it an emission target, changing existing output. Recording those is a separate
+  /// change
+  private func captureCrossModuleMembers(
+    of node: ExtensionDeclSyntax,
+    extending foreignDecl: SwiftNominalTypeDeclaration,
+    sourceFilePath: String,
+  ) -> CrossModuleExtensionMembers {
+    guard
+      let scratch = try? ExtractedNominalType(
+        swiftNominal: foreignDecl,
+        lookupContext: analyzer.lookupContext
+      )
+    else {
+      return CrossModuleExtensionMembers()
+    }
+
+    for memberItem in node.memberBlock.members {
+      switch memberItem.decl.as(DeclSyntaxEnum.self) {
+      case .functionDecl(let functionNode):
+        self.visit(functionDecl: functionNode, in: scratch, sourceFilePath: sourceFilePath)
+      case .variableDecl(let variableNode):
+        self.visit(variableDecl: variableNode, in: scratch, sourceFilePath: sourceFilePath)
+      case .initializerDecl(let initializerNode):
+        self.visit(initializerDecl: initializerNode, in: scratch)
+      case .subscriptDecl(let subscriptNode):
+        self.visit(subscriptDecl: subscriptNode, in: scratch)
+      default:
+        log.debug(
+          "Skip member of cross-module extension of '\(foreignDecl.qualifiedName)': \(memberItem.decl.kind)"
+        )
+      }
+    }
+
+    return CrossModuleExtensionMembers(
+      initializers: scratch.initializers,
+      methods: scratch.methods,
+      variables: scratch.variables,
+    )
+  }
+
+  /// Resolve an extension's `where` clause into the shared requirement vocabulary,
+  /// reporting separately whether some requirement could not be represented.
+  private func resolveExtensionRequirements(
+    _ whereClause: GenericWhereClauseSyntax?
+  ) -> (requirements: [SwiftGenericRequirement], hasUnrepresentable: Bool) {
+    guard let whereClause else { return ([], false) }
+
+    var requirements: [SwiftGenericRequirement] = []
+    var hasUnrepresentable = false
+    for requirementNode in whereClause.requirements {
+      switch requirementNode.requirement {
+      case .conformanceRequirement(let conformance):
+        if let lhs = try? SwiftType(conformance.leftType, lookupContext: analyzer.lookupContext),
+          let rhs = try? SwiftType(conformance.rightType, lookupContext: analyzer.lookupContext)
+        {
+          requirements.append(.inherits(lhs, rhs))
+        } else {
+          hasUnrepresentable = true
+        }
+
+      case .sameTypeRequirement(let sameType):
+        if let leftNode = sameType.leftType.as(TypeSyntax.self),
+          let rightNode = sameType.rightType.as(TypeSyntax.self),
+          let lhs = try? SwiftType(leftNode, lookupContext: analyzer.lookupContext),
+          let rhs = try? SwiftType(rightNode, lookupContext: analyzer.lookupContext)
+        {
+          requirements.append(.equals(lhs, rhs))
+        } else {
+          hasUnrepresentable = true
+        }
+
+      case .layoutRequirement:
+        // The shared requirement vocabulary has no layout case
+        hasUnrepresentable = true
+      }
+    }
+    return (requirements, hasUnrepresentable)
   }
 
   func visit(

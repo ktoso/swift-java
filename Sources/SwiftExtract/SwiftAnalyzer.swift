@@ -57,6 +57,9 @@ public final class SwiftAnalyzer {
   /// type representation.
   package var extractedTypes: [SwiftTypeName: ExtractedNominalType] = [:]
 
+  /// Extensions these sources declare on nominal types owned by other modules.
+  package var crossModuleExtensions: CrossModuleExtensions = CrossModuleExtensions()
+
   /// Specializations of generic types that will get their concrete Java declarations, "as if" they were independent types
   package var specializations: [ExtractedNominalType: Set<ExtractedNominalType>] = [:]
 
@@ -121,6 +124,7 @@ extension SwiftAnalyzer {
       extractedTypes: self.extractedTypes,
       extractedGlobalVariables: self.extractedGlobalVariables,
       extractedGlobalFuncs: self.extractedGlobalFuncs,
+      crossModuleExtensions: self.crossModuleExtensions,
     )
   }
 
@@ -372,29 +376,70 @@ extension SwiftAnalyzer {
     return self.extractedNominalType(nominal)
   }
 
+  /// The outcome of resolving the type an `extension` extends.
+  ///
+  /// Distinguishing these is what lets the analyzer look at an extension without
+  /// committing to emitting the type it extends
+  enum ExtendedTypeResolution {
+    /// Resolved, owned by this analysis, and past every filter: an emission target
+    case extractable(ExtractedNominalType)
+    /// Resolved but owned by another module. Recordable as a cross-module extension,
+    /// never an emission target
+    case crossModule(SwiftNominalTypeDeclaration)
+    /// Resolved and owned, but a glob filter or the access-level threshold rejected it.
+    /// Deliberately not recorded anywhere: the user asked for this type to be left out
+    case rejected
+    /// The extended type did not resolve at all
+    case unresolved
+  }
+
+  /// Whether this module owns this nominal and should emit bindings for it.
+  func ownsForEmission(_ decl: SwiftNominalTypeDeclaration) -> Bool {
+    let isFromThisModule = decl.moduleName == self.swiftModuleName
+    let isFromStubbedModule = config.hasImportedModuleStub(moduleOfNominal: decl.moduleName)
+    let isFromDependencyModule = sourceDependencies.swiftModuleNames.contains(decl.moduleName)
+    return isFromThisModule || isFromStubbedModule || isFromDependencyModule
+  }
+
+  /// Resolve the type an extension extends, reporting *why* resolution ended where it did
+  func resolveExtendedType(_ typeNode: TypeSyntax) -> ExtendedTypeResolution {
+    guard let swiftType = try? SwiftType(typeNode, lookupContext: lookupContext),
+      let swiftNominalDecl = swiftType.asNominalTypeDeclaration
+    else {
+      return .unresolved
+    }
+
+    guard ownsForEmission(swiftNominalDecl) else {
+      return .crossModule(swiftNominalDecl)
+    }
+
+    guard
+      swiftNominalDecl.syntax.shouldExtract(
+        config: config,
+        in: nil as ExtractedNominalType?,
+        decider: extractDecider
+      )
+    else {
+      return .rejected
+    }
+
+    guard let extracted = extractedNominalType(swiftNominalDecl) else {
+      return .rejected
+    }
+    return .extractable(extracted)
+  }
+
   /// Try to resolve the given nominal type node into its extracted representation.
+  ///
+  /// Yields a type only when this analysis both owns it and intends to emit it, which is
+  /// what callers outside the extension path require
   func extractedNominalType(
     _ typeNode: TypeSyntax
   ) -> ExtractedNominalType? {
-    guard let swiftType = try? SwiftType(typeNode, lookupContext: lookupContext) else {
+    guard case .extractable(let extracted) = resolveExtendedType(typeNode) else {
       return nil
     }
-    guard let swiftNominalDecl = swiftType.asNominalTypeDeclaration else {
-      return nil
-    }
-
-    let isFromThisModule = swiftNominalDecl.moduleName == self.swiftModuleName
-    let isFromStubbedModule = config.hasImportedModuleStub(moduleOfNominal: swiftNominalDecl.moduleName)
-    let isFromDependencyModule = sourceDependencies.swiftModuleNames.contains(swiftNominalDecl.moduleName)
-    guard isFromThisModule || isFromStubbedModule || isFromDependencyModule else {
-      return nil
-    }
-
-    guard swiftNominalDecl.syntax.shouldExtract(config: config, in: nil as ExtractedNominalType?, decider: extractDecider) else {
-      return nil
-    }
-
-    return extractedNominalType(swiftNominalDecl)
+    return extracted
   }
 
   func extractedNominalType(_ nominal: SwiftNominalTypeDeclaration) -> ExtractedNominalType? {
