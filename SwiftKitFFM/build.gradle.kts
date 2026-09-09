@@ -16,10 +16,8 @@ import org.swift.build.utils.resolveSwiftKitVersion
 
 plugins {
     id("build-logic.java-application-conventions")
-    `maven-publish`
+    id("build-logic.published-library-conventions")
 }
-
-group = "org.swift.swiftkit"
 
 version = resolveSwiftKitVersion()
 
@@ -30,16 +28,6 @@ base {
 repositories {
     mavenLocal()
     mavenCentral()
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            groupId = group as? String
-            artifactId = "swiftkit-ffm"
-            from(components["java"])
-        }
-    }
 }
 
 java {

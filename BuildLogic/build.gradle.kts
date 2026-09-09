@@ -24,4 +24,9 @@ repositories {
 
 dependencies {
     implementation(libs.kotlinx.serialization.json)
+
+    // Lets build-logic.published-library-conventions.gradle.kts apply
+    // id("com.google.osdetector") without a version (precompiled script plugins can
+    // only apply plugins already on this build's own classpath)
+    implementation("com.google.gradle:osdetector-gradle-plugin:1.7.3")
 }
