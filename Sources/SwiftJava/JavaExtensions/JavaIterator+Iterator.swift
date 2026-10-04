@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-extension JavaIterator: IteratorProtocol {
+extension JavaIterator: IteratorProtocol, Sequence {
   public typealias Element = E
 
   @_implements(IteratorProtocol,next())
@@ -22,5 +22,9 @@ extension JavaIterator: IteratorProtocol {
     }
 
     return nil
+  }
+
+  public func makeIterator() -> JavaIterator<E> {
+    self
   }
 }
