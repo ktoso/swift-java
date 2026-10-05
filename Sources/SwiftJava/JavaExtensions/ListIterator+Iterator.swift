@@ -15,7 +15,7 @@
 extension ListIterator: IteratorProtocol, Sequence {
   public typealias Element = E
 
-  @_implements(IteratorProtocol, next())
+  @_implements(IteratorProtocol,next())
   public mutating func swiftNext() -> E? {
     if hasNext() {
       return next() as E
