@@ -63,7 +63,7 @@ jobs:
     container:
       image: swift:6.3-noble
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0    # required so computeVersion() sees tag history
 
@@ -184,7 +184,7 @@ jobs:
             container: swift:6.3-jammy
             swift_sdk: aarch64-swift-linux-musl
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -257,7 +257,7 @@ jobs:
     needs: publish-java
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -316,7 +316,7 @@ jobs:
     needs: [publish-java, publish-natives-linux, publish-natives-macos]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

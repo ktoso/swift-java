@@ -67,7 +67,7 @@ jobs:
     container:
       image: swift:6.3-noble
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
@@ -194,7 +194,7 @@ jobs:
             container: swift:6.3-jammy
             swift_sdk: aarch64-swift-linux-musl
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
@@ -268,7 +268,7 @@ jobs:
     needs: publish-java
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
